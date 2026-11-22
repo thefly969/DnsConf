@@ -8,11 +8,13 @@ import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,6 +36,8 @@ public class SniProxyHealthChecker implements TlsSniProbe {
     private static final int TLS_TIMEOUT_MILLIS = 3_000;
     private static final int HTTP_TIMEOUT_MILLIS = 3_000;
     private static final int MAX_STATUS_LINE_LENGTH = 1_024;
+    private static final int MAX_RESPONSE_BODY_CHARS = 8_192;
+    private static final int MAX_RESPONSE_HEADER_CHARS = 32_768;
 
     @Override
     public Set<BypassRoute> findHealthy(List<BypassRoute> candidates) {
@@ -137,7 +141,7 @@ public class SniProxyHealthChecker implements TlsSniProbe {
         } else {
             request = "GET / HTTP/1.1\r\n"
                     + "Host: " + domain + "\r\n"
-                    + "User-Agent: Mozilla/5.0 DnsConfRouteProbe\r\n"
+                    + "User-Agent: DnsHostsGenerator/1.5.3 DnsConfRouteProbe\r\n"
                     + "Accept: */*\r\n"
                     + "Connection: close\r\n\r\n";
         }
@@ -145,40 +149,77 @@ public class SniProxyHealthChecker implements TlsSniProbe {
         tls.getOutputStream().write(request.getBytes(StandardCharsets.US_ASCII));
         tls.getOutputStream().flush();
 
-        int statusCode = readHttpStatusCode(tls.getInputStream());
-        return statusCode >= 100 && statusCode < 500;
-    }
-
-    private int readHttpStatusCode(InputStream input) throws IOException {
-        StringBuilder line = new StringBuilder();
-        int value;
-        while ((value = input.read()) != -1) {
-            if (value == '\n') {
-                break;
-            }
-            if (value != 13) {
-                line.append((char) value);
-                if (line.length() > MAX_STATUS_LINE_LENGTH) {
-                    return -1;
-                }
-            }
-        }
-
-        String statusLine = line.toString();
-        if (!statusLine.startsWith("HTTP/1.0 ") && !statusLine.startsWith("HTTP/1.1 ")) {
-            return -1;
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(tls.getInputStream(), StandardCharsets.UTF_8),
+                8 * 1024
+        );
+        String statusLine = reader.readLine();
+        if (statusLine == null
+                || (!statusLine.startsWith("HTTP/1.0 ") && !statusLine.startsWith("HTTP/1.1 "))) {
+            return false;
         }
 
         String[] parts = statusLine.split("\\s+", 3);
         if (parts.length < 2) {
-            return -1;
+            return false;
         }
 
+        int statusCode;
         try {
-            return Integer.parseInt(parts[1]);
+            statusCode = Integer.parseInt(parts[1]);
         } catch (NumberFormatException e) {
-            return -1;
+            return false;
         }
+
+        int headerChars = 0;
+        String header;
+        while ((header = reader.readLine()) != null && !header.isEmpty()) {
+            headerChars += header.length();
+            if (headerChars > MAX_RESPONSE_HEADER_CHARS) {
+                return false;
+            }
+        }
+
+        // A valid WebSocket upgrade has no HTTP response body to inspect.
+        if (statusCode == 101) {
+            return true;
+        }
+
+        StringBuilder body = new StringBuilder();
+        char[] buffer = new char[1_024];
+        while (body.length() < MAX_RESPONSE_BODY_CHARS) {
+            try {
+                int count = reader.read(
+                        buffer,
+                        0,
+                        Math.min(buffer.length, MAX_RESPONSE_BODY_CHARS - body.length())
+                );
+                if (count < 0) {
+                    break;
+                }
+                body.append(buffer, 0, count);
+            } catch (SocketTimeoutException timeout) {
+                // Some endpoints keep connections alive despite Connection: close.
+                // A complete status + headers and no regional marker are still useful.
+                break;
+            }
+        }
+
+        return isUsableHttpResponse(statusCode, body.toString());
+    }
+
+    /**
+     * Match DnsHostsGenerator 1.5.3's HTTP verdict policy:
+     * explicit region refusal is disqualifying; Cloudflare's anonymous
+     * "Request is not allowed" and bot challenges are not, by themselves,
+     * proof that the route cannot serve a logged-in application session.
+     */
+    static boolean isUsableHttpResponse(int statusCode, String body) {
+        if (statusCode < 100 || statusCode >= 500) {
+            return false;
+        }
+        return body == null
+                || !body.toLowerCase(Locale.ROOT).contains("unsupported_country_region_territory");
     }
 
 }
