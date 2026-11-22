@@ -31,17 +31,54 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
     private static final int MINIMUM_SMART_DOMAINS = 100;
     private static final int MINIMUM_HEALTHY_DOMAINS = 150;
     private static final double MINIMUM_HEALTHY_RATIO = 0.40;
+    // Exact mobile app profiles from DnsHostsGenerator 1.5.3 (22.11.2026).
+    // These are based on observed ChatGPT/Gemini Android traffic, not broad parent wildcards.
     private static final List<String> ADDITIONAL_SERVICE_DOMAINS = List.of(
+            "chatgpt.com",
+            "ws.chatgpt.com",
+            "ab.chatgpt.com",
+            "codex-cloud-backend.chatgpt.com",
+            "android.chat.openai.com",
+            "aw.api.openai.com",
+            "cdn.platform.openai.com",
+            "auth.openai.com",
+            "auth0.openai.com",
+            "cdn.auth0.com",
+            "chat.openai.com",
+            "ios.chat.openai.com",
+            "api.openai.com",
+            "platform.openai.com",
+            "cdn.oaistatic.com",
+            "files.oaiusercontent.com",
+            "openai.com",
+            "gemini.google.com",
+            "aistudio.google.com",
+            "makersuite.google.com",
+            "bard.google.com",
+            "generativelanguage.googleapis.com",
+            "aisandbox-pa.googleapis.com",
+            "assistant-s3-pa.googleapis.com",
+            "proactivebackend-pa.googleapis.com",
+            "robinfrontend-pa.googleapis.com",
+            "alkalicore-pa.clients6.google.com",
+            "alkalimakersuite-pa.clients6.google.com",
+            "webchannel-alkalimakersuite-pa.clients6.google.com",
+            "people-pa.clients6.google.com",
+            "signaler-pa.clients6.google.com",
+            "waa-pa.clients6.google.com",
+            "deepmind.google",
+            "jules.google.com",
+            "notebooklm.google.com",
+            "labs.google",
+            // Additional web-app dependencies from official network guidance.
             "www.googleapis.com",
             "ssl.gstatic.com",
             "fonts.googleapis.com",
             "apis.google.com",
             "jnn-pa.googleapis.com",
-            "waa-pa.clients6.google.com",
             "lh3.googleusercontent.com",
             "lh5.googleusercontent.com",
             "ogs.google.com",
-            "ws.chatgpt.com",
             "cdn.openaimerge.com",
             "cdn.workos.com",
             "forwarder.workos.com",
@@ -51,6 +88,17 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
             "js.stripe.com",
             "setup.workos.com",
             "workos.imgix.net"
+    );
+
+    // Candidate observed in DnsHostsGenerator 1.5.3 with api.bezshansov.ru DoT.
+    // Release notes report HTTP 200/302 for these exact domains; it is still
+    // re-probed from this runner before it can become a NextDNS rewrite.
+    private static final List<BypassRoute> DNS_HOSTS_GENERATOR_CANDIDATES = List.of(
+            new BypassRoute("77.90.47.224", "gemini.google.com"),
+            new BypassRoute("77.90.47.224", "aistudio.google.com"),
+            new BypassRoute("77.90.47.224", "generativelanguage.googleapis.com"),
+            new BypassRoute("77.90.47.224", "chatgpt.com"),
+            new BypassRoute("77.90.47.224", "auth.openai.com")
     );
 
     private final NextDnsRewriteService nextDnsRewriteService;
@@ -67,7 +115,9 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                 - direct Crutch mappings are used only as a last resort and only after HTTPS/SNI validation.
                 - every candidate is checked for TCP 443, TLS hostname validation and an actual HTTP response.
                 - the ChatGPT WebSocket host is additionally checked with an HTTP Upgrade request.
-                - additional Gemini and ChatGPT dependencies come from a small, explicit host list.
+                - exact ChatGPT (17) and Gemini (19) Android profiles come from DnsHostsGenerator 1.5.3.
+                - HTTP verdict policy rejects explicit regional refusal but tolerates anonymous Cloudflare blocks and bot challenges.
+                - a recently tested api.bezshansov.ru candidate is re-probed before use; its published IP is not trusted blindly.
                 - alternative proxy IPs for these hosts are tested individually; no broad Google parent domains are added.
                 - failed probes preserve an existing profile mapping as last-known-good.
                 - a minimum share of domains must pass live validation before the profile can be changed.
@@ -132,6 +182,7 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                     .filter(route -> allowlist.contains(NextDnsRewriteOptimizer.normalizeDomain(route.website())))
                     .forEach(orderedCandidates::add);
             orderedCandidates.addAll(fallbackRoutes);
+            orderedCandidates.addAll(DNS_HOSTS_GENERATOR_CANDIDATES);
 
             // Reuse only the public proxy IPs already present in the upstream SMART pools.
             // Each additional service hostname is tested independently before it can be rewritten.
@@ -156,6 +207,8 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                     .formatted(allowlist.size(), primaryRoutes.size(), allowedAlternatives, fallbackRoutes.size()));
             Log.common("Additional service hosts: %s; candidate proxy IPs: %s; extra IP-host checks: %s."
                     .formatted(ADDITIONAL_SERVICE_DOMAINS.size(), proxyIps.size(), additionalCandidateCount));
+            Log.common("DnsHostsGenerator 1.5.3 extra candidates: %s (all re-probed)."
+                    .formatted(DNS_HOSTS_GENERATOR_CANDIDATES.size()));
 
             List<com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto> existingRewrites =
                     nextDnsRewriteService.getExistingRewrites();
