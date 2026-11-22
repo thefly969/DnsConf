@@ -1,0 +1,66 @@
+name: NextDNS GeoHide Rewrite Sync
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+      timezone: Europe/Zurich
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextdns-clean-workflow-v1
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: DNS
+
+    env:
+      DNS: NEXTDNS
+      BLOCK: ${{ vars.BLOCK }}
+      REDIRECT: ${{ vars.REDIRECT || 'https://raw.githubusercontent.com/Internet-Helper/GeoHideDNS/refs/heads/main/hosts/hosts' }}
+      EXCLUDE_REDIRECT: ${{ vars.EXCLUDE_REDIRECT }}
+      DONOR_DNS: ${{ vars.DONOR_DNS }}
+
+      CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      TZ: Europe/Zurich
+
+    steps:
+      - name: Validate NextDNS configuration
+        shell: bash
+        run: |
+          if [[ -z "$CLIENT_ID" ]]; then
+            echo "::error::Missing DNS environment secret CLIENT_ID (NextDNS profile ID)."
+            exit 1
+          fi
+          if [[ -z "$AUTH_SECRET" ]]; then
+            echo "::error::Missing DNS environment secret AUTH_SECRET (NextDNS API key)."
+            exit 1
+          fi
+          if [[ -z "$REDIRECT" ]]; then
+            echo "::error::REDIRECT source list is empty."
+            exit 1
+          fi
+          echo "NextDNS credentials and hosts source are configured."
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: maven
+
+      - name: Build and run tests
+        run: mvn -B -ntp clean verify
+
+      - name: Synchronize NextDNS profile
+        run: java --enable-preview -jar target/*.jar
