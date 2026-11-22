@@ -9,7 +9,7 @@ import java.util.function.Predicate;
 public class HostsBlockListsLoader extends ListLoader<String> {
 
     private static final String[] BLOCK_IPS = {"0.0.0.0", "127.0.0.1", "::1"};
-    private static final String[] LOCALHOST_NAME = {"localhost", "ip6-localhost"};
+    private static final String[] LOCALHOST_NAME = {"localhost", "ip6-localhost", "ip6-loopback"};
 
     @Override
     protected String listType() {

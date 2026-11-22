@@ -2,8 +2,6 @@ package com.novibe.dns.next_dns;
 
 import com.novibe.common.DnsTaskRunner;
 import com.novibe.common.base_structures.BypassRoute;
-import com.novibe.common.service.ExcludeRedirectCheckService;
-import com.novibe.common.util.DonorDnsUtils;
 import com.novibe.common.util.EnvParser;
 import com.novibe.common.util.Log;
 import com.novibe.dns.next_dns.http.dto.request.CreateRewriteDto;
@@ -12,32 +10,35 @@ import com.novibe.dns.next_dns.service.NextDnsRewriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static com.novibe.common.config.EnvironmentVariables.BLOCK;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
-import static java.util.Objects.nonNull;
 
 @Service
 @RequiredArgsConstructor
 public class NextDnsTaskRunner extends DnsTaskRunner {
 
+    private static final int MINIMUM_SMART_SOURCE_DOMAINS = 100;
+
     private final NextDnsRewriteService nextDnsRewriteService;
     private final NextDnsDenyService nextDnsDenyService;
-    private final ExcludeRedirectCheckService excludeRedirectCheckService;
 
     @Override
     public void greetingMessage() {
         Log.global("Setting up Profile " + dnsProfile.number() + " (NextDNS)");
         Log.common("""
                 Script behaviour: provided BLOCK/REDIRECT sources are synchronized with the profile.
-                - each hosts domain maps to an IP address; unparsable lines are skipped.
+                - hosts lines may contain multiple hostnames for one IP; every hostname is parsed.
+                - duplicate domains keep the first source mapping deterministically.
+                - the SMART source contains IP/domain pairs individually checked by upstream TLS/SNI probes.
+                - direct "Crutch" mappings are retained as published by the source.
+                - NextDNS preserves the source IPs; DONOR_DNS substitution is intentionally disabled here.
                 - a NextDNS rewrite covers the domain and its subdomains.
                 - redundant child rewrites with the same IP as their nearest parent are removed.
                 - child rewrites with a different IP are retained as explicit exceptions.
-                - custom rewrites outside supplied sources are kept, except EXCLUDE_REDIRECT matches.
+                - stale source-managed rules are removed using a manifest committed by GitHub Actions.
                 - the projected rewrite count is checked against the 500-rule limit before any rewrite changes.
                 - API writes are paced below the documented 60 requests per minute limit.
                 """);
@@ -61,19 +62,14 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
         List<String> rewriteSources = EnvParser.parse(REDIRECT);
         if (!rewriteSources.isEmpty()) {
             Log.step("Obtain rewrite lists from %s sources".formatted(rewriteSources.size()));
-            List<BypassRoute> fetchedOverrides = overrideListsLoader.fetchWebsites(rewriteSources);
-            List<BypassRoute> overrides = new ArrayList<>();
-            for (BypassRoute route : fetchedOverrides) {
-                if (!excludeRedirectCheckService.shouldExcludeFromSource(route.website())) {
-                    overrides.add(route);
-                }
-            }
-            Log.common("Redirect source exclusions: skipped %s of %s entries; %s remain."
-                    .formatted(fetchedOverrides.size() - overrides.size(), fetchedOverrides.size(), overrides.size()));
+            List<BypassRoute> overrides = overrideListsLoader.fetchWebsites(rewriteSources);
+            Log.common("Loaded %s distinct redirect domains from SMART hosts sources; source IPs are kept unchanged."
+                    .formatted(overrides.size()));
 
-            if (nonNull(dnsProfile.donorDns())) {
-                Log.step("Replace IP of domains via IPs from " + dnsProfile.donorDns());
-                DonorDnsUtils.replaceIPs(overrides, dnsProfile);
+            if (overrides.size() < MINIMUM_SMART_SOURCE_DOMAINS) {
+                throw new IllegalStateException("SMART hosts source returned only %s redirect domains; minimum expected is %s. "
+                        .formatted(overrides.size(), MINIMUM_SMART_SOURCE_DOMAINS)
+                        + "Refusing to change the NextDNS profile because the upstream source may be incomplete.");
             }
 
             Log.step("Prepare and optimize rewrites");

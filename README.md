@@ -91,17 +91,19 @@ Set **environment variable** `DNS` with DNS provider name (**Cloudflare** or **N
 
 ## Set up data sources
 
-Each data source must be a link to a hosts file,
-e.g. https://raw.githubusercontent.com/Internet-Helper/GeoHideDNS/refs/heads/main/hosts/hosts
+The automated NextDNS workflow uses this current aggregated source:
 
-You can provide multiple sources split by coma:
-https://first.com/hosts,https://second.com/hosts
+`https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart.hosts`
+
+It is refreshed approximately every 3 hours. Unlike a simple concatenation of hosts files, its geoblock section keeps IP/domain pairs whose TLS/SNI handshake was checked by the list maintainer through the corresponding proxy. A separate **Crutch** section contains direct-IP mappings for some local ISP blocks. Source and methodology: https://github.com/Noktomezo/RussiaFancyLists
+
+The SMART URL is pinned in `.github/workflows/nextdns_sync.yml`. The GitHub Environment variable `REDIRECT` no longer overrides this workflow; the previous two sources have been replaced with the tested aggregate. Do not append large additional sources without recalculating the NextDNS rule limit.
 
 ### 1) Set up Redirects
 
-Set sources to **environment variable** `REDIRECT`
+For a normal application run, set sources in the **environment variable** `REDIRECT`. The automated NextDNS workflow in this repository uses the pinned SMART source described above.
 
-Script will parse sources, filtering out redirects to `0.0.0.0` and `127.0.0.1`
+The parser supports standard hosts lines with multiple domains after one IP. When a domain appears more than once, the first mapping in source order is kept.
 
 Thus, parsing lines:
 
@@ -143,19 +145,9 @@ for the further block processing.
 
 ## Set up exclude redirects (optional)
 
-The NextDNS workflow in this repository also applies the curated source-exclusion list in
-`src/main/resources/nextdns-redirect-source-exclusions.txt`. It filters selected domains and their subdomains
-from incoming hosts sources **before donor-DNS lookups**. These source-only exclusions do not delete existing
-manual NextDNS rewrites.
-
-The list is designed around NextDNS's 500-rule limit while retaining the main service groups, including AI,
-development, games, and tools. You can review or adjust it directly in the repository. The final rule count is
-still checked on every run because upstream sources and DNS answers can change.
-
 Add your own exclusions to the **environment variable** `EXCLUDE_REDIRECT`, separated by commas, e.g.
-`instagram.com,twitch.com`. They are applied in addition to the curated file. Unlike the source-only list,
-user-defined `EXCLUDE_REDIRECT` entries also delete matching existing rewrites and prevent matching domains
-and subdomains from being added.
+`instagram.com,twitch.com`. The named domain and its true subdomains will not be added; matching existing
+rewrites will be deleted. Do not use this variable for large service families unless you intend to disable them entirely.
 
 ---
 
@@ -181,6 +173,10 @@ Then, a `DONOR_DNS` value will be called for each domain, fetching new IP addres
     9.8.7.6 domain-3.to.redirect
 
 Thus, the new IPs will be used for the further redirect rules upload process.
+
+**NextDNS SMART special case:** the workflow intentionally does not replace the SMART source IPs through
+`DONOR_DNS`. They have already been selected by upstream TLS/SNI checks. Substituting an ordinary DNS answer
+could break the proxy route. The current NextDNS workflow does not use `DONOR_DNS`.
 
 ---
 
@@ -231,6 +227,7 @@ For `REDIRECT`:
 + Existing domain will be updated if redirect IP has changed
 + If new domains are provided, they will be added
 + The rest redirect settings are kept untouched
++ Old source-managed domains are cleaned up during the SMART source migration; user-created rewrites outside the saved managed-domain manifest are preserved
 
 For `BLOCK`:
 
@@ -251,9 +248,9 @@ Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` s
 2) Go _Settings_ => _Environments_
 3) Create _New environment_ with name `DNS`
 4) Provide `AUTH_SECRET` and `CLIENT_ID` to **Environment secrets**
-5) Provide `DNS`,`REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
+5) Provide `DNS`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**. The current NextDNS workflow pins its SMART source in the workflow file; no `REDIRECT` variable is required.
 
-+ The action will be executed every day at **01:30 UTC**. To set another time, change cron at
++ The action will be executed daily at **03:00 Europe/Zurich time**. To set another time, change cron at
   `.github/workflows/nextdns_sync.yml`
 + You can run the action manually via `Run workflow` button: switch to _Actions_ tab and choose workflow named **DNS
   Block&Redirect Configurer cron task**

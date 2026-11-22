@@ -10,27 +10,22 @@ import java.util.Locale;
 public class ExcludeRedirectCheckService {
 
     private final List<String> ignoringList;
-    private final List<String> sourceIgnoringList;
 
     public ExcludeRedirectCheckService(ExcludeRedirectSettingsLoader excludeRedirectSettingsLoader) {
-        ignoringList = normalize(excludeRedirectSettingsLoader.loadIgnoredDomains());
-        sourceIgnoringList = normalize(excludeRedirectSettingsLoader.loadSourceExcludedDomains());
+        ignoringList = excludeRedirectSettingsLoader.loadIgnoredDomains().stream()
+                .map(ExcludeRedirectCheckService::normalizeDomain)
+                .filter(domain -> !domain.isEmpty())
+                .distinct()
+                .toList();
     }
 
     /**
-     * Explicit EXCLUDE_REDIRECT settings keep their existing behaviour:
-     * excluded domains are not added and matching existing rewrites are deleted.
+     * User-defined EXCLUDE_REDIRECT entries exclude the named domain and true
+     * subdomains, and keep their established behaviour of deleting matching
+     * existing NextDNS rewrites.
      */
     public boolean shouldExclude(String domain) {
         return matchesAny(ignoringList, domain);
-    }
-
-    /**
-     * Source-only exclusions filter incoming hosts records but do not delete
-     * existing manual rewrites in the NextDNS profile.
-     */
-    public boolean shouldExcludeFromSource(String domain) {
-        return matchesAny(ignoringList, domain) || matchesAny(sourceIgnoringList, domain);
     }
 
     static boolean matchesAny(List<String> domains, String candidate) {
@@ -47,14 +42,6 @@ public class ExcludeRedirectCheckService {
             }
         }
         return false;
-    }
-
-    private static List<String> normalize(List<String> domains) {
-        return domains.stream()
-                .map(ExcludeRedirectCheckService::normalizeDomain)
-                .filter(domain -> !domain.isEmpty())
-                .distinct()
-                .toList();
     }
 
     private static String normalizeDomain(String domain) {

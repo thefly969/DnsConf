@@ -39,22 +39,25 @@ public abstract class ListLoader<T> {
                     .forEach(requests::add);
             scope.join();
 
+            // Keep the source and line encounter order. Hosts files may provide
+            // several candidate IPs for one hostname; the first tested mapping
+            // must win deterministically when distinct() collapses duplicates.
             return requests.stream()
                     .map(StructuredTaskScope.Subtask::get)
                     .flatMap(DataParser::splitByEol)
                     .map(String::strip)
-                    .parallel()
                     .filter(line -> !line.isBlank())
                     .filter(line -> !DataParser.isComment(line))
                     .map(String::toLowerCase)
-                    .map(DataParser::parseHostsLine)
+                    .flatMap(line -> DataParser.parseHostsLines(line).stream())
                     .filter(Objects::nonNull)
                     .filter(filterRelatedLines())
                     .distinct()
                     .map(this::toObject)
                     .collect(Collectors.toCollection(ArrayList::new));
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while downloading hosts sources", e);
         }
     }
 
@@ -63,7 +66,11 @@ public abstract class ListLoader<T> {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .GET()
                 .build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("Hosts source returned HTTP " + response.statusCode() + ": " + url);
+        }
+        return response.body();
     }
 
 }

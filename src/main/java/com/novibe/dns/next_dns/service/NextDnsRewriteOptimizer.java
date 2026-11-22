@@ -6,9 +6,11 @@ import com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -30,15 +32,36 @@ public final class NextDnsRewriteOptimizer {
             List<RewriteDto> existingRewrites,
             Predicate<String> isExcluded
     ) {
+        return plan(requestedRewrites, existingRewrites, isExcluded, Set.of());
+    }
+
+    /**
+     * The managed-domain manifest identifies exact NextDNS rules created by an
+     * earlier synchronization. Stale rules from previous source versions can be
+     * removed without touching unrelated user-created rules.
+     */
+    public static Plan plan(
+            Map<String, CreateRewriteDto> requestedRewrites,
+            List<RewriteDto> existingRewrites,
+            Predicate<String> isExcluded,
+            Set<String> previouslyManagedDomains
+    ) {
         Objects.requireNonNull(requestedRewrites, "requestedRewrites");
         Objects.requireNonNull(existingRewrites, "existingRewrites");
         Objects.requireNonNull(isExcluded, "isExcluded");
+        Objects.requireNonNull(previouslyManagedDomains, "previouslyManagedDomains");
+
+        Set<String> previouslyManaged = new HashSet<>();
+        previouslyManagedDomains.stream()
+                .map(NextDnsRewriteOptimizer::normalizeDomain)
+                .filter(domain -> !domain.isBlank())
+                .forEach(previouslyManaged::add);
 
         Map<String, CreateRewriteDto> desiredByDomain = new LinkedHashMap<>();
         for (CreateRewriteDto request : requestedRewrites.values()) {
             String domain = normalizeDomain(request.name());
             if (!domain.isBlank() && !isExcluded.test(domain)) {
-                // First source wins, matching DnsConf's source-priority behaviour.
+                // First source wins, matching the source-priority behaviour.
                 desiredByDomain.putIfAbsent(domain, new CreateRewriteDto(domain, request.content()));
             }
         }
@@ -57,15 +80,20 @@ public final class NextDnsRewriteOptimizer {
             if (domain.isBlank()) {
                 continue;
             }
-            if (isExcluded.test(domain)) {
+
+            boolean explicitlyExcluded = isExcluded.test(domain);
+            boolean staleManagedRule = previouslyManaged.contains(domain) && !desiredByDomain.containsKey(domain);
+            if (explicitlyExcluded || staleManagedRule) {
                 idsToDelete.add(existing.id());
                 continue;
             }
+
             existingByDomain.putIfAbsent(domain, existing);
             effectiveRules.putIfAbsent(domain, existing.content());
         }
 
         Map<String, CreateRewriteDto> rewritesToCreate = new LinkedHashMap<>();
+        Set<String> managedRuleDomainsAfterSync = new LinkedHashSet<>();
 
         // Parent domains must be processed before their children. The effective
         // map includes existing manual rules and source rules already planned.
@@ -77,8 +105,7 @@ public final class NextDnsRewriteOptimizer {
 
             if (Objects.equals(inheritedIp, targetIp)) {
                 // The parent already supplies exactly the requested answer.
-                // Remove only an exact rule whose domain is explicitly present
-                // in the source list; unrelated manual child rules are untouched.
+                // Remove only an exact rule for a domain explicitly in the source.
                 if (exactExisting != null && idsToDelete.add(exactExisting.id())) {
                     effectiveRules.remove(domain);
                 }
@@ -90,6 +117,7 @@ public final class NextDnsRewriteOptimizer {
                     && Objects.equals(exactExisting.content(), targetIp)) {
                 // The exact rule already provides the requested answer.
                 effectiveRules.put(domain, targetIp);
+                managedRuleDomainsAfterSync.add(domain);
                 continue;
             }
 
@@ -100,6 +128,7 @@ public final class NextDnsRewriteOptimizer {
 
             rewritesToCreate.put(domain, new CreateRewriteDto(domain, targetIp));
             effectiveRules.put(domain, targetIp);
+            managedRuleDomainsAfterSync.add(domain);
         }
 
         int projectedCount = existingRewrites.size() - idsToDelete.size() + rewritesToCreate.size();
@@ -108,7 +137,8 @@ public final class NextDnsRewriteOptimizer {
                 List.copyOf(rewritesToCreate.values()),
                 existingRewrites.size(),
                 desiredByDomain.size(),
-                projectedCount
+                projectedCount,
+                Set.copyOf(managedRuleDomainsAfterSync)
         );
     }
 
@@ -117,7 +147,7 @@ public final class NextDnsRewriteOptimizer {
         if (value == null) {
             return "";
         }
-        String domain = value.strip().toLowerCase(java.util.Locale.ROOT);
+        String domain = value.strip().toLowerCase(Locale.ROOT);
         while (domain.startsWith(".")) {
             domain = domain.substring(1);
         }
@@ -155,7 +185,8 @@ public final class NextDnsRewriteOptimizer {
             List<CreateRewriteDto> rewritesToCreate,
             int existingCount,
             int sourceDomainCount,
-            int projectedCount
+            int projectedCount,
+            Set<String> managedRuleDomainsAfterSync
     ) {
         public boolean fitsNextDnsLimit() {
             return projectedCount <= MAX_REWRITES;

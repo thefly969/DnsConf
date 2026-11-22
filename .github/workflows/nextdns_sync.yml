@@ -1,4 +1,4 @@
-name: NextDNS GeoHide Rewrite Sync
+name: NextDNS SMART Rewrite Sync
 
 on:
   push:

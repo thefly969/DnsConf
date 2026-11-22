@@ -10,15 +10,22 @@ import com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class NextDnsRewriteService {
+
+    private static final Path MANAGED_STATE_PATH = Path.of("state", "managed-nextdns-rewrites.txt");
 
     private final NextDnsRewriteClient nextDnsRewriteClient;
     private final ExcludeRedirectCheckService excludeRedirectCheckService;
@@ -33,16 +40,18 @@ public class NextDnsRewriteService {
     }
 
     /**
-     * Synchronizes only domains present in the supplied hosts sources. Existing
-     * custom rules outside those sources are kept, except for configured excludes.
-     * All capacity checks happen before the first write request.
+     * Synchronizes supplied hosts mappings. Exact rules created by previous runs
+     * are tracked in a repository manifest so obsolete source entries can be
+     * removed without deleting unrelated user-created rewrites.
      */
     public void syncRewrites(Map<String, CreateRewriteDto> requestedRewrites) {
         List<RewriteDto> existingRewrites = getExistingRewrites();
+        Set<String> previouslyManagedDomains = loadManagedDomains();
         NextDnsRewriteOptimizer.Plan plan = NextDnsRewriteOptimizer.plan(
                 requestedRewrites,
                 existingRewrites,
-                excludeRedirectCheckService::shouldExclude
+                excludeRedirectCheckService::shouldExclude,
+                previouslyManagedDomains
         );
 
         Log.common("Hosts domains: %s; existing rewrites: %s; deletes: %s; creates: %s; projected total: %s/%s"
@@ -58,7 +67,7 @@ public class NextDnsRewriteService {
         if (!plan.fitsNextDnsLimit()) {
             String message = "NextDNS rewrite limit would be exceeded: projected %s rules, maximum %s. No API changes were sent. "
                     .formatted(plan.projectedCount(), NextDnsRewriteOptimizer.MAX_REWRITES)
-                    + "Reduce the source list or add EXCLUDE_REDIRECT domains.";
+                    + "Remove less important source domains or user-created rules before retrying.";
             Log.fail(message);
             throw new IllegalStateException(message);
         }
@@ -84,8 +93,57 @@ public class NextDnsRewriteService {
             NextDnsRateLimitedApiProcessor.callApi(plan.rewritesToCreate(), nextDnsRewriteClient::saveRewrite);
         }
 
-        Log.common("NextDNS rewrites synchronized successfully. Final expected count: %s/%s"
-                .formatted(plan.projectedCount(), NextDnsRewriteOptimizer.MAX_REWRITES));
+        // Verify the result through a fresh API read before advancing the
+        // source-managed manifest. A partial API update must not be recorded
+        // as a completed migration.
+        List<RewriteDto> finalRewrites = getExistingRewrites();
+        int finalCount = finalRewrites.size();
+        if (finalCount > NextDnsRewriteOptimizer.MAX_REWRITES) {
+            throw new IllegalStateException("NextDNS profile returned %s rewrites after synchronization; maximum is %s."
+                    .formatted(finalCount, NextDnsRewriteOptimizer.MAX_REWRITES));
+        }
+
+        Set<String> finalDomainNames = finalRewrites.stream()
+                .map(rewrite -> NextDnsRewriteOptimizer.normalizeDomain(rewrite.name()))
+                .collect(Collectors.toSet());
+        Set<String> missingManagedRules = plan.managedRuleDomainsAfterSync().stream()
+                .filter(domain -> !finalDomainNames.contains(domain))
+                .collect(Collectors.toSet());
+        if (!missingManagedRules.isEmpty()) {
+            throw new IllegalStateException("NextDNS did not return %s expected source-managed rewrites. The state manifest was not updated."
+                    .formatted(missingManagedRules.size()));
+        }
+
+        persistManagedDomains(plan.managedRuleDomainsAfterSync());
+        Log.common("NextDNS rewrites synchronized successfully. Final actual count: %s/%s; source-managed explicit rules: %s"
+                .formatted(finalCount, NextDnsRewriteOptimizer.MAX_REWRITES, plan.managedRuleDomainsAfterSync().size()));
+    }
+
+    private Set<String> loadManagedDomains() {
+        if (!Files.exists(MANAGED_STATE_PATH)) {
+            Log.common("No previous source-managed rewrite manifest found; preserving existing profile rules unless they match the new source.");
+            return Set.of();
+        }
+        try {
+            return Files.readAllLines(MANAGED_STATE_PATH, StandardCharsets.UTF_8).stream()
+                    .map(String::strip)
+                    .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+                    .map(NextDnsRewriteOptimizer::normalizeDomain)
+                    .filter(domain -> !domain.isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to read managed NextDNS rewrite manifest: " + MANAGED_STATE_PATH, e);
+        }
+    }
+
+    private void persistManagedDomains(Set<String> domains) {
+        try {
+            Files.createDirectories(MANAGED_STATE_PATH.getParent());
+            List<String> lines = domains.stream().sorted().toList();
+            Files.write(MANAGED_STATE_PATH, lines, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to write managed NextDNS rewrite manifest: " + MANAGED_STATE_PATH, e);
+        }
     }
 
     public List<RewriteDto> getExistingRewrites() {

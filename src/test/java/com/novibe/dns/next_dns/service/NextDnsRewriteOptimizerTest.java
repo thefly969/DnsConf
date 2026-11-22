@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,6 +25,7 @@ class NextDnsRewriteOptimizerTest {
         assertEquals(List.of("child-id"), plan.idsToDelete());
         assertEquals(List.of("example.com"), names(plan.rewritesToCreate()));
         assertEquals(1, plan.projectedCount());
+        assertEquals(Set.of("example.com"), plan.managedRuleDomainsAfterSync());
     }
 
     @Test
@@ -89,6 +91,35 @@ class NextDnsRewriteOptimizerTest {
         );
         assertEquals(List.of("child"), plan.idsToDelete());
         assertTrue(plan.rewritesToCreate().isEmpty());
+        assertEquals(1, plan.projectedCount());
+    }
+
+    @Test
+    void removesStalePreviouslyManagedRulesButKeepsUnrelatedManualRules() {
+        var plan = NextDnsRewriteOptimizer.plan(
+                requested(entry("new.example", "1.2.3.4")),
+                List.of(
+                        existing("old-source", "old.example", "1.2.3.4"),
+                        existing("manual", "manual.example", "5.6.7.8")
+                ),
+                ignored -> false,
+                Set.of("old.example")
+        );
+
+        assertEquals(List.of("old-source"), plan.idsToDelete());
+        assertEquals(List.of("new.example"), names(plan.rewritesToCreate()));
+        assertEquals(2, plan.projectedCount());
+        assertEquals(Set.of("new.example"), plan.managedRuleDomainsAfterSync());
+    }
+
+    @Test
+    void manifestContainsOnlyExplicitRulesNotChildrenCoveredByTheParent() {
+        var plan = NextDnsRewriteOptimizer.plan(
+                requested(entry("example.com", "1.2.3.4"), entry("api.example.com", "1.2.3.4")),
+                List.of(), ignored -> false
+        );
+
+        assertEquals(Set.of("example.com"), plan.managedRuleDomainsAfterSync());
         assertEquals(1, plan.projectedCount());
     }
 
