@@ -1,6 +1,6 @@
 🌐 Languages: [󠁧󠁢󠁥󠁮󠁧󠁿**English**](README.md) | [**Русский**](README.ru.md)
 
-[![Last Build](../../actions/workflows/github_action.yml/badge.svg?branch=main)](../../actions/workflows/github_action.yml)<br>
+[![Last Build](../../actions/workflows/nextdns_sync.yml/badge.svg?branch=main)](../../actions/workflows/nextdns_sync.yml)<br>
 
 # Конфигуратор блокировок и перенаправлений DNS
 
@@ -288,6 +288,6 @@ https://www.youtube.com/watch?v=vbAXM_xAL5I
 5) Добавьте `DNS`, `REDIRECT`, `BLOCK` и `EXCLUDE_REDIRECT` в **Environment variables**
 
 + **Action** запускается ежедневно в **01:30 UTC** (04:30 по МСК).  
-  Чтобы изменить время, отредактируйте cron в `.github/workflows/github_action.yml`
+  Чтобы изменить время, отредактируйте cron в `.github/workflows/nextdns_sync.yml`
 + **Action** можно запустить вручную через кнопку **Run workflow**:  
   вкладка _Actions_ → workflow **DNS Block&Redirect Configurer cron task**
