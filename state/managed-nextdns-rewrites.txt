@@ -16,6 +16,7 @@ ai.com
 aisandbox-pa.googleapis.com
 aistudio.google.com
 aitestkitchen.withgoogle.com
+alkalicore-pa.clients6.google.com
 alkalimakersuite-pa.clients6.google.com
 amd.com
 analog.com
@@ -31,7 +32,6 @@ api.imgur.com
 api.instagram.com
 api.jetbrains.ai
 api.manus.im
-api.openai.com
 api.spotify.com
 api.trae.ai
 api.us.elevenlabs.io
@@ -45,9 +45,7 @@ audio-ak-spotify-com.akamaized.net
 audio-cf.spotifycdn.com
 audio4-ak-spotify-com.akamaized.net
 audio4-fa-tls13.spotifycdn.com
-auth.openai.com
 auth.spotify.com
-auth0.openai.com
 autodesk.com
 autodesk.net
 avast.com
@@ -82,14 +80,12 @@ canva-apps.com
 canva.com
 canva.dev
 capcut.com
+cdn.auth0.com
 cdn.id.supercell.com
-cdn.oaistatic.com
 cdn.openaimerge.com
-cdn.platform.openai.com
 cdn.web-platform.io
 cgtrader.com
 chaos.com
-chat.openai.com
 chatgpt.com
 cici.com
 ciscobinary.openh264.org
@@ -128,6 +124,7 @@ datalore.jetbrains.com
 dealer-wg.spotify.com
 dealer.spotify.com
 deepl.com
+deepmind.google
 deezer.com
 dell.com
 dellcdn.com
@@ -224,7 +221,6 @@ instagram.com
 intel.com
 intel.de
 intel.se
-ios.chat.openai.com
 iperf3serverlist.net
 ita-free.app.deepl.com
 ita-free.www.deepl.com
@@ -248,6 +244,7 @@ login.amd.com
 lookerstudio.google.com
 m3u.in
 make.com
+makersuite.google.com
 makita.co.nz
 makitalatinamerica.com
 malwarebytes.com
@@ -298,6 +295,7 @@ patreon.com
 patreonusercontent.com
 payment.deezer.com
 pcmag.com
+people-pa.clients6.google.com
 pi.ai
 plugins.jetbrains.com
 powertoolsuk.co.uk
@@ -332,6 +330,7 @@ security.id.supercell.com
 securitytrails.com
 sentry.io
 shield.deepl.com
+signaler-pa.clients6.google.com
 singlekey-id.com
 sketchup.com
 sora.com
@@ -346,7 +345,6 @@ ssl.gstatic.com
 static.canva.com
 static.cdninstagram.com
 static.naukimg.com
-static.superpharm.eu
 static.xx.fbcdn.net
 static3.cdn.ubi.com
 stitch.withgoogle.com
@@ -362,6 +360,7 @@ t.me
 tableau.com
 tailscale.com
 tapeop.dev
+tcr9i.chat.openai.com
 telegram.dog
 telegram.me
 telegram.org
