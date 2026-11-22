@@ -36,6 +36,7 @@ api.spotify.com
 api.trae.ai
 api.us.elevenlabs.io
 api16-normal-alisg.mchost.guru
+apis.google.com
 app.zerossl.com
 arduino.cc
 assistant-s3-pa.googleapis.com
@@ -83,6 +84,7 @@ canva.dev
 capcut.com
 cdn.id.supercell.com
 cdn.oaistatic.com
+cdn.openaimerge.com
 cdn.platform.openai.com
 cdn.web-platform.io
 cgtrader.com
@@ -229,6 +231,9 @@ ita-free.www.deepl.com
 jetbrains.ai
 jetbrains.com
 jetbrains.space
+jnn-pa.googleapis.com
+js.intercomcdn.com
+js.stripe.com
 jules.google.com
 kaleido.ai
 labs.google
@@ -337,9 +342,11 @@ spotifycdn.com
 spotifycdn.net
 squadbustersgame.com
 squareup.com
+ssl.gstatic.com
 static.canva.com
 static.cdninstagram.com
 static.naukimg.com
+static.superpharm.eu
 static.xx.fbcdn.net
 static3.cdn.ubi.com
 stitch.withgoogle.com
@@ -388,11 +395,11 @@ usher.ttvnw.net
 videos.openai.com
 voice-proxy.www.deepl.com
 w.deepl.com
+waa-pa.clients6.google.com
 wap.spotifycdn.com
 wbagora.com
 wbgames.com
 weather.com
-web-sdk-assets.spotifycdn.com
 web.archive.org
 webchannel-alkalimakersuite-pa.clients6.google.com
 whimsical.com
