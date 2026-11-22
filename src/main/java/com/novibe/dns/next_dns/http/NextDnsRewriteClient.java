@@ -15,9 +15,16 @@ import java.util.List;
 public class NextDnsRewriteClient extends AbstractNextDnsHttpClient {
 
     public List<RewriteDto> fetchRewrites() {
-        // NextDNS array endpoints are paginated. There can be at most 500 rewrites,
-        // so requesting the maximum page size obtains the complete current profile.
-        MultiRewriteResponse response = get(path() + "?limit=500", MultiRewriteResponse.class);
+        /*
+         * The live /rewrites endpoint rejects the generic limit parameter
+         * with HTTP 400 (error code extraneous). Keep this request identical
+         * to the form used successfully by the original DnsConf workflow:
+         * GET /profiles/{profile}/rewrites.
+         *
+         * Do not append query parameters unless NextDNS explicitly
+         * documents and accepts them for this endpoint.
+         */
+        MultiRewriteResponse response = get(path(), MultiRewriteResponse.class);
         if (response == null) {
             throw new IllegalStateException("NextDNS returned an empty response while fetching rewrites");
         }

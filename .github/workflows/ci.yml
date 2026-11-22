@@ -3,6 +3,7 @@ name: Build and test
 on:
   push:
     branches:
+      - main
       - "feature/**"
   pull_request:
     branches:
