@@ -1,6 +1,6 @@
 🌐 Languages: [󠁧󠁢󠁥󠁮󠁧󠁿**English**](README.md) | [**Русский**](README.ru.md)
 
-[![Last Build](../../actions/workflows/github_action.yml/badge.svg?branch=main)](../../actions/workflows/github_action.yml)<br>
+[![Last Build](../../actions/workflows/nextdns_sync.yml/badge.svg?branch=main)](../../actions/workflows/nextdns_sync.yml)<br>
 
 # DNS Block&Redirect Configurer
 
@@ -247,6 +247,6 @@ Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` s
 5) Provide `DNS`,`REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
 
 + The action will be executed every day at **01:30 UTC**. To set another time, change cron at
-  `.github/workflows/github_action.yml`
+  `.github/workflows/nextdns_sync.yml`
 + You can run the action manually via `Run workflow` button: switch to _Actions_ tab and choose workflow named **DNS
   Block&Redirect Configurer cron task**
