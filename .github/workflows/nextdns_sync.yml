@@ -29,8 +29,13 @@ jobs:
     env:
       DNS: NEXTDNS
       BLOCK: ${{ vars.BLOCK }}
-      # Deliberately pinned: the old vars.REDIRECT value must not override SMART.
-      REDIRECT: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart.hosts
+      # Priority 1: SMART's preferred, non-Crutch proxy IP mappings.
+      REDIRECT: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart-no-crutch.hosts
+      # Priority 2: additional IP candidates from every upstream provider;
+      # code restricts these to the SMART domain allowlist.
+      REDIRECT_CANDIDATES: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/combined-no-crutch.hosts
+      # Priority 3: direct mappings for SMART domains with no proxy mapping.
+      REDIRECT_FALLBACK: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/only-crutch.hosts
       EXCLUDE_REDIRECT: ${{ vars.EXCLUDE_REDIRECT }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
@@ -48,11 +53,11 @@ jobs:
             echo "::error::Missing DNS environment secret AUTH_SECRET (NextDNS API key)."
             exit 1
           fi
-          if [[ -z "$REDIRECT" ]]; then
-            echo "::error::SMART hosts source URL is empty."
+          if [[ -z "$REDIRECT" || -z "$REDIRECT_CANDIDATES" || -z "$REDIRECT_FALLBACK" ]]; then
+            echo "::error::One or more SMART hosts source URLs are empty."
             exit 1
           fi
-          echo "NextDNS credentials and SMART hosts source are configured."
+          echo "NextDNS credentials and SMART hosts sources are configured."
 
       - name: Checkout repository
         uses: actions/checkout@v5

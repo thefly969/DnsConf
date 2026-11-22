@@ -16,6 +16,10 @@ public class EnvironmentVariables {
 
     public static final String REDIRECT = System.getenv("REDIRECT");
 
+    public static final String REDIRECT_FALLBACK = System.getenv("REDIRECT_FALLBACK");
+
+    public static final String REDIRECT_CANDIDATES = System.getenv("REDIRECT_CANDIDATES");
+
     public static final String EXCLUDE_REDIRECT = System.getenv("EXCLUDE_REDIRECT");
 
     public static final String DONOR_DNS = System.getenv("DONOR_DNS");

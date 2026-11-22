@@ -2,43 +2,56 @@ package com.novibe.dns.next_dns;
 
 import com.novibe.common.DnsTaskRunner;
 import com.novibe.common.base_structures.BypassRoute;
+import com.novibe.common.service.ExcludeRedirectCheckService;
 import com.novibe.common.util.EnvParser;
 import com.novibe.common.util.Log;
 import com.novibe.dns.next_dns.http.dto.request.CreateRewriteDto;
 import com.novibe.dns.next_dns.service.NextDnsDenyService;
+import com.novibe.dns.next_dns.service.NextDnsRedirectSelector;
+import com.novibe.dns.next_dns.service.NextDnsRewriteOptimizer;
 import com.novibe.dns.next_dns.service.NextDnsRewriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.novibe.common.config.EnvironmentVariables.BLOCK;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
+import static com.novibe.common.config.EnvironmentVariables.REDIRECT_CANDIDATES;
+import static com.novibe.common.config.EnvironmentVariables.REDIRECT_FALLBACK;
 
 @Service
 @RequiredArgsConstructor
 public class NextDnsTaskRunner extends DnsTaskRunner {
 
-    private static final int MINIMUM_SMART_SOURCE_DOMAINS = 100;
+    private static final int MINIMUM_SMART_DOMAINS = 100;
+    private static final int MINIMUM_HEALTHY_DOMAINS = 150;
+    private static final double MINIMUM_HEALTHY_RATIO = 0.40;
 
     private final NextDnsRewriteService nextDnsRewriteService;
     private final NextDnsDenyService nextDnsDenyService;
+    private final NextDnsRedirectSelector nextDnsRedirectSelector;
+    private final ExcludeRedirectCheckService excludeRedirectCheckService;
 
     @Override
     public void greetingMessage() {
         Log.global("Setting up Profile " + dnsProfile.number() + " (NextDNS)");
         Log.common("""
                 Script behaviour: provided BLOCK/REDIRECT sources are synchronized with the profile.
-                - hosts lines may contain multiple hostnames for one IP; every hostname is parsed.
-                - duplicate domains keep the first source mapping deterministically.
-                - the SMART source contains IP/domain pairs individually checked by upstream TLS/SNI probes.
-                - direct "Crutch" mappings are retained as published by the source.
-                - NextDNS preserves the source IPs; DONOR_DNS substitution is intentionally disabled here.
+                - SMART proxy addresses are preferred; alternative provider addresses are tested next.
+                - direct Crutch mappings are used only as a last resort and only after TLS/SNI validation.
+                - each candidate IP is checked on TCP 443 with the hostname as SNI and HTTPS certificate validation.
+                - alternative IP candidates are restricted to the SMART domain allowlist.
+                - failed probes preserve an existing profile mapping as last-known-good.
+                - a minimum share of domains must pass live validation before the profile can be changed.
+                - DONOR_DNS substitution is disabled because it would replace a tested proxy IP with an ordinary DNS answer.
                 - a NextDNS rewrite covers the domain and its subdomains.
                 - redundant child rewrites with the same IP as their nearest parent are removed.
-                - child rewrites with a different IP are retained as explicit exceptions.
-                - stale source-managed rules are removed using a manifest committed by GitHub Actions.
+                - stale source-managed rules are removed using the GitHub manifest.
                 - the projected rewrite count is checked against the 500-rule limit before any rewrite changes.
                 - API writes are paced below the documented 60 requests per minute limit.
                 """);
@@ -59,27 +72,82 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
             Log.fail("No block sources provided");
         }
 
-        List<String> rewriteSources = EnvParser.parse(REDIRECT);
-        if (!rewriteSources.isEmpty()) {
-            Log.step("Obtain rewrite lists from %s sources".formatted(rewriteSources.size()));
-            List<BypassRoute> overrides = overrideListsLoader.fetchWebsites(rewriteSources);
-            Log.common("Loaded %s distinct redirect domains from SMART hosts sources; source IPs are kept unchanged."
-                    .formatted(overrides.size()));
+        List<String> primarySources = EnvParser.parse(REDIRECT);
+        List<String> fallbackSources = EnvParser.parse(REDIRECT_FALLBACK);
+        List<String> candidateSources = EnvParser.parse(REDIRECT_CANDIDATES);
 
-            if (overrides.size() < MINIMUM_SMART_SOURCE_DOMAINS) {
-                throw new IllegalStateException("SMART hosts source returned only %s redirect domains; minimum expected is %s. "
-                        .formatted(overrides.size(), MINIMUM_SMART_SOURCE_DOMAINS)
+        if (!primarySources.isEmpty()) {
+            Log.step("Load preferred SMART proxy mappings");
+            List<BypassRoute> primaryRoutes = overrideListsLoader.fetchWebsites(primarySources);
+
+            Log.step("Load SMART direct-mapping fallback domains");
+            List<BypassRoute> fallbackRoutes = fallbackSources.isEmpty()
+                    ? List.of()
+                    : overrideListsLoader.fetchWebsites(fallbackSources);
+
+            Set<String> allowlist = new LinkedHashSet<>();
+            primaryRoutes.forEach(route -> allowlist.add(NextDnsRewriteOptimizer.normalizeDomain(route.website())));
+            fallbackRoutes.forEach(route -> allowlist.add(NextDnsRewriteOptimizer.normalizeDomain(route.website())));
+            allowlist.remove("");
+
+            if (allowlist.size() < MINIMUM_SMART_DOMAINS) {
+                throw new IllegalStateException("SMART sources returned only %s unique domains; minimum expected is %s. "
+                        .formatted(allowlist.size(), MINIMUM_SMART_DOMAINS)
                         + "Refusing to change the NextDNS profile because the upstream source may be incomplete.");
             }
 
-            Log.step("Prepare and optimize rewrites");
-            Map<String, CreateRewriteDto> requests = nextDnsRewriteService.buildNewRewrites(overrides);
+            Log.step("Load alternative proxy IP candidates");
+            List<BypassRoute> alternativeRoutes = candidateSources.isEmpty()
+                    ? List.of()
+                    : overrideListsLoader.fetchWebsites(candidateSources);
+
+            // Priority: SMART's preferred proxy mappings, all-provider proxy
+            // alternatives restricted to SMART domains, then direct Crutch.
+            List<BypassRoute> orderedCandidates = new ArrayList<>(primaryRoutes);
+            alternativeRoutes.stream()
+                    .filter(route -> allowlist.contains(NextDnsRewriteOptimizer.normalizeDomain(route.website())))
+                    .forEach(orderedCandidates::add);
+            orderedCandidates.addAll(fallbackRoutes);
+
+            long allowedAlternatives = alternativeRoutes.stream()
+                    .filter(route -> allowlist.contains(NextDnsRewriteOptimizer.normalizeDomain(route.website())))
+                    .count();
+            Log.common("SMART allowlist: %s domains; preferred mappings: %s; alternative mappings in allowlist: %s; direct fallback mappings: %s."
+                    .formatted(allowlist.size(), primaryRoutes.size(), allowedAlternatives, fallbackRoutes.size()));
+
+            List<com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto> existingRewrites =
+                    nextDnsRewriteService.getExistingRewrites();
+
+            Log.step("Probe candidate IPs using TLS/SNI");
+            NextDnsRedirectSelector.Selection selection = nextDnsRedirectSelector.select(
+                    orderedCandidates,
+                    allowlist,
+                    existingRewrites,
+                    excludeRedirectCheckService::shouldExclude
+            );
+
+            int minimumHealthy = Math.max(
+                    MINIMUM_HEALTHY_DOMAINS,
+                    (int) Math.ceil(selection.eligibleDomainCount() * MINIMUM_HEALTHY_RATIO)
+            );
+            if (selection.healthyDomainCount() < minimumHealthy) {
+                throw new IllegalStateException("Only %s/%s SMART domains passed live TLS/SNI validation; at least %s are required. "
+                        .formatted(selection.healthyDomainCount(), selection.eligibleDomainCount(), minimumHealthy)
+                        + "No NextDNS rewrites were changed. The current profile remains intact.");
+            }
+
+            if (selection.rewrites().isEmpty()) {
+                throw new IllegalStateException("No usable SMART redirect routes were selected. NextDNS profile was not changed.");
+            }
+
+            Log.step("Prepare and optimize validated redirects");
+            Map<String, CreateRewriteDto> requests = selection.rewrites();
             nextDnsRewriteService.syncRewrites(requests);
         } else {
-            Log.fail("No rewrite sources provided");
+            Log.fail("No primary SMART rewrite sources provided");
         }
 
-        if (blockSources.isEmpty() && rewriteSources.isEmpty()) {
+        if (blockSources.isEmpty() && primarySources.isEmpty()) {
             Log.step("Remove settings");
             nextDnsDenyService.removeAll();
             nextDnsRewriteService.removeAll();

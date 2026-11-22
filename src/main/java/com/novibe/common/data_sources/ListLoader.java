@@ -39,9 +39,8 @@ public abstract class ListLoader<T> {
                     .forEach(requests::add);
             scope.join();
 
-            // Keep the source and line encounter order. Hosts files may provide
-            // several candidate IPs for one hostname; the first tested mapping
-            // must win deterministically when distinct() collapses duplicates.
+            // Keep distinct (IP, domain) pairs. A hostname may have several
+            // proxy candidates; collapsing by domain here loses all backups.
             return requests.stream()
                     .map(StructuredTaskScope.Subtask::get)
                     .flatMap(DataParser::splitByEol)
@@ -52,8 +51,10 @@ public abstract class ListLoader<T> {
                     .flatMap(line -> DataParser.parseHostsLines(line).stream())
                     .filter(Objects::nonNull)
                     .filter(filterRelatedLines())
-                    .distinct()
                     .map(this::toObject)
+                    // Deduplicate only after conversion: redirect equality includes
+                    // both IP and hostname; blocklist equality is a domain string.
+                    .distinct()
                     .collect(Collectors.toCollection(ArrayList::new));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

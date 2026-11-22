@@ -7,12 +7,11 @@ import lombok.experimental.Accessors;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@EqualsAndHashCode
 @Accessors(fluent = true)
 @Getter
 public final class HostsLine {
 
-    @EqualsAndHashCode.Include
     private final String domain;
 
     private final String ip;

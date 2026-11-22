@@ -13,8 +13,11 @@ import com.novibe.dns.cloudflare.service.RuleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import static com.novibe.common.config.EnvironmentVariables.BLOCK;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
@@ -45,7 +48,14 @@ public class CloudflareTaskRunner extends DnsTaskRunner {
 
 
         List<String> blocks = blockListsLoader.fetchWebsites(EnvParser.parse(BLOCK));
-        List<BypassRoute> overrides = overrideListsLoader.fetchWebsites(EnvParser.parse(REDIRECT));
+        List<BypassRoute> fetchedOverrides = overrideListsLoader.fetchWebsites(EnvParser.parse(REDIRECT));
+
+        // Preserve Cloudflare's historic behaviour: first IP per domain wins.
+        // NextDNS uses all IP/domain pairs and probes each candidate separately.
+        Map<String, BypassRoute> firstOverrideByDomain = new LinkedHashMap<>();
+        fetchedOverrides.forEach(route -> firstOverrideByDomain.putIfAbsent(
+                route.website().toLowerCase(Locale.ROOT), route));
+        List<BypassRoute> overrides = new ArrayList<>(firstOverrideByDomain.values());
 
         Log.step("Remove old rules.");
         List<GatewayRuleDto> gatewayRuleDtos = ruleService.obtainExistingRules();

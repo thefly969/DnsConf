@@ -91,19 +91,28 @@ Set **environment variable** `DNS` with DNS provider name (**Cloudflare** or **N
 
 ## Set up data sources
 
-The automated NextDNS workflow uses this current aggregated source:
+The automated NextDNS workflow uses three maintained files from
+[RussiaFancyLists](https://github.com/Noktomezo/RussiaFancyLists):
 
-`https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart.hosts`
+| Priority | File | Purpose |
+|---|---|---|
+| 1 | `smart-no-crutch.hosts` | Preferred proxy IP mappings |
+| 2 | `combined-no-crutch.hosts` | Alternative IPs from all proxy providers; only used for SMART domains |
+| 3 | `only-crutch.hosts` | Direct mappings for some local blocks, used only as a last resort |
 
-It is refreshed approximately every 3 hours. Unlike a simple concatenation of hosts files, its geoblock section keeps IP/domain pairs whose TLS/SNI handshake was checked by the list maintainer through the corresponding proxy. A separate **Crutch** section contains direct-IP mappings for some local ISP blocks. Source and methodology: https://github.com/Noktomezo/RussiaFancyLists
+The workflow preserves distinct IP/domain pairs instead of discarding all but the first IP for a hostname. Every candidate is tested from the GitHub runner on TCP 443 using the domain as TLS SNI and HTTPS certificate validation. It tries alternatives when a preferred IP fails. A child domain may reuse a validated parent IP when that same IP also passes for the child, reducing Rewrite count without changing the selected route.
 
-The SMART URL is pinned in `.github/workflows/nextdns_sync.yml`. The GitHub Environment variable `REDIRECT` no longer overrides this workflow; the previous two sources have been replaced with the tested aggregate. Do not append large additional sources without recalculating the NextDNS rule limit.
+The alternative file is filtered against the union of `smart-no-crutch.hosts` and `only-crutch.hosts`, so it cannot expand the domain allowlist. If all current candidates for a domain fail, its existing profile mapping is kept as last-known-good. If fewer than the configured minimum share of domains pass live validation, the workflow stops before changing NextDNS.
+
+The probe runs from GitHub Actions, not from your local ISP. It checks that the candidate IP and TLS/SNI route work from the runner; it cannot certify reachability from every provider or device. DNS rewrites alone also cannot bypass a network device that resets TLS based on the requested SNI. Source and upstream methodology: https://github.com/Noktomezo/RussiaFancyLists
+
+All three source URLs are pinned in `.github/workflows/nextdns_sync.yml`. The GitHub Environment variable `REDIRECT` does not override this workflow. Do not append unbounded domains: NextDNS still permits at most 500 Rewrite rules.
 
 ### 1) Set up Redirects
 
 For a normal application run, set sources in the **environment variable** `REDIRECT`. The automated NextDNS workflow in this repository uses the pinned SMART source described above.
 
-The parser supports standard hosts lines with multiple domains after one IP. When a domain appears more than once, the first mapping in source order is kept.
+The parser supports standard hosts lines with multiple domains after one IP. Distinct IP/domain pairs are preserved. The NextDNS workflow probes all candidate IPs; the Cloudflare workflow explicitly keeps its historic first mapping per domain.
 
 Thus, parsing lines:
 
@@ -113,7 +122,7 @@ Thus, parsing lines:
 
 will keep only `1.2.3.4 domain.to.redirect` for the further redirect processing.
 
-+ Redirect priority follows sources order. If domain appears more than one time, the first only IP will be applied.
++ For NextDNS SMART, preferred, alternative and direct fallback IPs have separate priorities and are selected only after TLS/SNI checks.
 
 ### 2) Set up Blocklist
 
