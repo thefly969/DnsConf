@@ -108,7 +108,7 @@ public class SniProxyHealthChecker implements TlsSniProbe {
                     // A successful handshake is not sufficient if the endpoint
                     // presents a certificate invalid for the requested hostname.
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
-                    parameters.setApplicationProtocols("http/1.1");
+                    parameters.setApplicationProtocols(new String[]{"http/1.1"});
                     tls.setSSLParameters(parameters);
                     tls.setSoTimeout(TLS_TIMEOUT_MILLIS);
                     tls.startHandshake();
