@@ -9,8 +9,10 @@ on:
 permissions:
   contents: read
 
+# Bump the group name to bypass any stale queued run left by a GitHub Actions
+# backend incident. Keep serialization for subsequent manual/scheduled runs.
 concurrency:
-  group: nextdns-rewrite-sync
+  group: nextdns-rewrite-sync-v2
   cancel-in-progress: false
 
 jobs:
