@@ -156,7 +156,7 @@ public class SniProxyHealthChecker implements TlsSniProbe {
             if (value == '\n') {
                 break;
             }
-            if (value != '\\r') {
+            if (value != 13) {
                 line.append((char) value);
                 if (line.length() > MAX_STATUS_LINE_LENGTH) {
                     return -1;
