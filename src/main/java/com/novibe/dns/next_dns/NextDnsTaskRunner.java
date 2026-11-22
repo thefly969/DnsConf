@@ -31,6 +31,27 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
     private static final int MINIMUM_SMART_DOMAINS = 100;
     private static final int MINIMUM_HEALTHY_DOMAINS = 150;
     private static final double MINIMUM_HEALTHY_RATIO = 0.40;
+    private static final List<String> ADDITIONAL_SERVICE_DOMAINS = List.of(
+            "www.googleapis.com",
+            "ssl.gstatic.com",
+            "fonts.googleapis.com",
+            "apis.google.com",
+            "jnn-pa.googleapis.com",
+            "waa-pa.clients6.google.com",
+            "lh3.googleusercontent.com",
+            "lh5.googleusercontent.com",
+            "ogs.google.com",
+            "ws.chatgpt.com",
+            "cdn.openaimerge.com",
+            "cdn.workos.com",
+            "forwarder.workos.com",
+            "frontend-apps-multi-region.workos.com",
+            "images.workoscdn.com",
+            "js.intercomcdn.com",
+            "js.stripe.com",
+            "setup.workos.com",
+            "workos.imgix.net"
+    );
 
     private final NextDnsRewriteService nextDnsRewriteService;
     private final NextDnsDenyService nextDnsDenyService;
@@ -43,9 +64,11 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
         Log.common("""
                 Script behaviour: provided BLOCK/REDIRECT sources are synchronized with the profile.
                 - SMART proxy addresses are preferred; alternative provider addresses are tested next.
-                - direct Crutch mappings are used only as a last resort and only after TLS/SNI validation.
-                - each candidate IP is checked on TCP 443 with the hostname as SNI and HTTPS certificate validation.
-                - alternative IP candidates are restricted to the SMART domain allowlist.
+                - direct Crutch mappings are used only as a last resort and only after HTTPS/SNI validation.
+                - every candidate is checked for TCP 443, TLS hostname validation and an actual HTTP response.
+                - the ChatGPT WebSocket host is additionally checked with an HTTP Upgrade request.
+                - additional Gemini and ChatGPT dependencies come from a small, explicit host list.
+                - alternative proxy IPs for these hosts are tested individually; no broad Google parent domains are added.
                 - failed probes preserve an existing profile mapping as last-known-good.
                 - a minimum share of domains must pass live validation before the profile can be changed.
                 - DONOR_DNS substitution is disabled because it would replace a tested proxy IP with an ordinary DNS answer.
@@ -88,6 +111,7 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
             Set<String> allowlist = new LinkedHashSet<>();
             primaryRoutes.forEach(route -> allowlist.add(NextDnsRewriteOptimizer.normalizeDomain(route.website())));
             fallbackRoutes.forEach(route -> allowlist.add(NextDnsRewriteOptimizer.normalizeDomain(route.website())));
+            allowlist.addAll(ADDITIONAL_SERVICE_DOMAINS);
             allowlist.remove("");
 
             if (allowlist.size() < MINIMUM_SMART_DOMAINS) {
@@ -109,16 +133,34 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                     .forEach(orderedCandidates::add);
             orderedCandidates.addAll(fallbackRoutes);
 
+            // Reuse only the public proxy IPs already present in the upstream SMART pools.
+            // Each additional service hostname is tested independently before it can be rewritten.
+            LinkedHashSet<String> proxyIps = new LinkedHashSet<>();
+            primaryRoutes.stream().map(BypassRoute::ip)
+                    .filter(ip -> ip != null && !ip.isBlank()).forEach(proxyIps::add);
+            alternativeRoutes.stream().map(BypassRoute::ip)
+                    .filter(ip -> ip != null && !ip.isBlank()).forEach(proxyIps::add);
+
+            int additionalCandidateCount = 0;
+            for (String domain : ADDITIONAL_SERVICE_DOMAINS) {
+                for (String ip : proxyIps) {
+                    orderedCandidates.add(new BypassRoute(ip, domain));
+                    additionalCandidateCount++;
+                }
+            }
+
             long allowedAlternatives = alternativeRoutes.stream()
                     .filter(route -> allowlist.contains(NextDnsRewriteOptimizer.normalizeDomain(route.website())))
                     .count();
             Log.common("SMART allowlist: %s domains; preferred mappings: %s; alternative mappings in allowlist: %s; direct fallback mappings: %s."
                     .formatted(allowlist.size(), primaryRoutes.size(), allowedAlternatives, fallbackRoutes.size()));
+            Log.common("Additional service hosts: %s; candidate proxy IPs: %s; extra IP-host checks: %s."
+                    .formatted(ADDITIONAL_SERVICE_DOMAINS.size(), proxyIps.size(), additionalCandidateCount));
 
             List<com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto> existingRewrites =
                     nextDnsRewriteService.getExistingRewrites();
 
-            Log.step("Probe candidate IPs using TLS/SNI");
+            Log.step("Probe candidate routes using HTTPS/SNI and HTTP");
             NextDnsRedirectSelector.Selection selection = nextDnsRedirectSelector.select(
                     orderedCandidates,
                     allowlist,
@@ -126,12 +168,22 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                     excludeRedirectCheckService::shouldExclude
             );
 
+            for (String domain : ADDITIONAL_SERVICE_DOMAINS) {
+                CreateRewriteDto selected = selection.rewrites().get(domain);
+                if (selected != null) {
+                    Log.common("Service route selected: %s -> %s".formatted(domain, selected.content()));
+                } else {
+                    Log.common("Service route not selected: %s (no candidate passed validation or the domain is excluded)."
+                            .formatted(domain));
+                }
+            }
+
             int minimumHealthy = Math.max(
                     MINIMUM_HEALTHY_DOMAINS,
                     (int) Math.ceil(selection.eligibleDomainCount() * MINIMUM_HEALTHY_RATIO)
             );
             if (selection.healthyDomainCount() < minimumHealthy) {
-                throw new IllegalStateException("Only %s/%s SMART domains passed live TLS/SNI validation; at least %s are required. "
+                throw new IllegalStateException("Only %s/%s SMART domains passed live HTTPS/SNI/HTTP validation; at least %s are required. "
                         .formatted(selection.healthyDomainCount(), selection.eligibleDomainCount(), minimumHealthy)
                         + "No NextDNS rewrites were changed. The current profile remains intact.");
             }
