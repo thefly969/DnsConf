@@ -2,6 +2,7 @@ package com.novibe.dns.next_dns;
 
 import com.novibe.common.DnsTaskRunner;
 import com.novibe.common.base_structures.BypassRoute;
+import com.novibe.common.service.ExcludeRedirectCheckService;
 import com.novibe.common.util.DonorDnsUtils;
 import com.novibe.common.util.EnvParser;
 import com.novibe.common.util.Log;
@@ -11,6 +12,7 @@ import com.novibe.dns.next_dns.service.NextDnsRewriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +26,7 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
 
     private final NextDnsRewriteService nextDnsRewriteService;
     private final NextDnsDenyService nextDnsDenyService;
+    private final ExcludeRedirectCheckService excludeRedirectCheckService;
 
     @Override
     public void greetingMessage() {
@@ -58,7 +61,15 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
         List<String> rewriteSources = EnvParser.parse(REDIRECT);
         if (!rewriteSources.isEmpty()) {
             Log.step("Obtain rewrite lists from %s sources".formatted(rewriteSources.size()));
-            List<BypassRoute> overrides = overrideListsLoader.fetchWebsites(rewriteSources);
+            List<BypassRoute> fetchedOverrides = overrideListsLoader.fetchWebsites(rewriteSources);
+            List<BypassRoute> overrides = new ArrayList<>();
+            for (BypassRoute route : fetchedOverrides) {
+                if (!excludeRedirectCheckService.shouldExcludeFromSource(route.website())) {
+                    overrides.add(route);
+                }
+            }
+            Log.common("Redirect source exclusions: skipped %s of %s entries; %s remain."
+                    .formatted(fetchedOverrides.size() - overrides.size(), fetchedOverrides.size(), overrides.size()));
 
             if (nonNull(dnsProfile.donorDns())) {
                 Log.step("Replace IP of domains via IPs from " + dnsProfile.donorDns());

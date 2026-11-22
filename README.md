@@ -143,12 +143,19 @@ for the further block processing.
 
 ## Set up exclude redirects (optional)
 
-Put domains to **environment variable** `EXCLUDE_REDIRECT` separated by coma, e.g. `instagram.com,twitch.com`
+The NextDNS workflow in this repository also applies the curated source-exclusion list in
+`src/main/resources/nextdns-redirect-source-exclusions.txt`. It filters selected domains and their subdomains
+from incoming hosts sources **before donor-DNS lookups**. These source-only exclusions do not delete existing
+manual NextDNS rewrites.
 
-These domains and their subdomains:
+The list is designed around NextDNS's 500-rule limit while retaining the main service groups, including AI,
+development, games, and tools. You can review or adjust it directly in the repository. The final rule count is
+still checked on every run because upstream sources and DNS answers can change.
 
-- will be removed from existing redirect rules;
-- won't be added with new ones.
+Add your own exclusions to the **environment variable** `EXCLUDE_REDIRECT`, separated by commas, e.g.
+`instagram.com,twitch.com`. They are applied in addition to the curated file. Unlike the source-only list,
+user-defined `EXCLUDE_REDIRECT` entries also delete matching existing rewrites and prevent matching domains
+and subdomains from being added.
 
 ---
 
