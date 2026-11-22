@@ -29,12 +29,15 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
     public void greetingMessage() {
         Log.global("Setting up Profile " + dnsProfile.number() + " (NextDNS)");
         Log.common("""
-                Script behaviour: old BLOCK/REDIRECT settings are about to be updated via provided BLOCK/REDIRECT sources.
-                - if no sources provided, then all NextDNS settings will be removed.
-                - each line is mapped to an IP–domain pair; lines that cannot be parsed are skipped.
-                - if provided only one type of sources, related settings will be updated; another type remain untouched.
-                - if EXCLUDE_REDIRECT domains provided, they will affect both existing and new redirect rules.
-                NextDNS api rate limiter reset config: 60 seconds after the last request""");
+                Script behaviour: provided BLOCK/REDIRECT sources are synchronized with the profile.
+                - each hosts domain maps to an IP address; unparsable lines are skipped.
+                - a NextDNS rewrite covers the domain and its subdomains.
+                - redundant child rewrites with the same IP as their nearest parent are removed.
+                - child rewrites with a different IP are retained as explicit exceptions.
+                - custom rewrites outside supplied sources are kept, except EXCLUDE_REDIRECT matches.
+                - the projected rewrite count is checked against the 500-rule limit before any rewrite changes.
+                - API writes are paced below the documented 60 requests per minute limit.
+                """);
     }
 
     @Override
@@ -54,7 +57,6 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
 
         List<String> rewriteSources = EnvParser.parse(REDIRECT);
         if (!rewriteSources.isEmpty()) {
-
             Log.step("Obtain rewrite lists from %s sources".formatted(rewriteSources.size()));
             List<BypassRoute> overrides = overrideListsLoader.fetchWebsites(rewriteSources);
 
@@ -63,12 +65,9 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                 DonorDnsUtils.replaceIPs(overrides, dnsProfile);
             }
 
-            Log.step("Prepare rewrites");
+            Log.step("Prepare and optimize rewrites");
             Map<String, CreateRewriteDto> requests = nextDnsRewriteService.buildNewRewrites(overrides);
-            List<CreateRewriteDto> createRewriteDtos = nextDnsRewriteService.cleanupOutdatedAndExcluded(requests);
-
-            Log.step("Save rewrites");
-            nextDnsRewriteService.saveRewrites(createRewriteDtos);
+            nextDnsRewriteService.syncRewrites(requests);
         } else {
             Log.fail("No rewrite sources provided");
         }

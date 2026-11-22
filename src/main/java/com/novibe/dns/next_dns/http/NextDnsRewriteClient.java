@@ -15,8 +15,19 @@ import java.util.List;
 public class NextDnsRewriteClient extends AbstractNextDnsHttpClient {
 
     public List<RewriteDto> fetchRewrites() {
-        return get(path(), MultiRewriteResponse.class)
-                .getData();
+        // NextDNS array endpoints are paginated. There can be at most 500 rewrites,
+        // so requesting the maximum page size obtains the complete current profile.
+        MultiRewriteResponse response = get(path() + "?limit=500", MultiRewriteResponse.class);
+        if (response == null) {
+            throw new IllegalStateException("NextDNS returned an empty response while fetching rewrites");
+        }
+        if (response.getErrors() != null && !response.getErrors().isEmpty()) {
+            throw new IllegalStateException("NextDNS API error while fetching rewrites: " + response.getErrors());
+        }
+        if (response.getData() == null) {
+            throw new IllegalStateException("NextDNS response did not contain the rewrites list");
+        }
+        return response.getData();
     }
 
     public SingleRewriteResponse saveRewrite(CreateRewriteDto rewriteDto) {
@@ -31,5 +42,4 @@ public class NextDnsRewriteClient extends AbstractNextDnsHttpClient {
     protected String path() {
         return "/rewrites";
     }
-
 }
