@@ -1,9 +1,6 @@
-3.basecampapi.com
 3dwarehouse.sketchup.com
 4pda.to
-a.claude.ai
 aave.com
-ab.chatgpt.com
 account.jetbrains.com
 account.mongodb.com
 account.spotify.com
@@ -14,9 +11,7 @@ accounts.supercell.com
 accounts.x.ai
 adobe.io
 aet.spotify.com
-afcs.dellcdn.com
 affinity.studio
-ai-chat.bsg.brave.com
 ai.com
 aisandbox-pa.googleapis.com
 aistudio.google.com
@@ -38,13 +33,11 @@ api.jetbrains.ai
 api.manus.im
 api.openai.com
 api.spotify.com
-api.tidal.com
 api.trae.ai
 api.us.elevenlabs.io
 api16-normal-alisg.mchost.guru
 app.zerossl.com
 arduino.cc
-assets.grok.com
 assistant-s3-pa.googleapis.com
 atlassian.com
 audio-ak-spotify-com.akamaized.net
@@ -53,7 +46,6 @@ audio4-ak-spotify-com.akamaized.net
 audio4-fa-tls13.spotifycdn.com
 auth.openai.com
 auth.spotify.com
-auth.tidal.com
 auth0.openai.com
 autodesk.com
 autodesk.net
@@ -109,12 +101,9 @@ claudeusercontent.com
 clearance.deepl.com
 clickup.com
 client-api.linear.app
-cloud.mongodb.com
-cloud.oracle.com
 cms-images.mmst.eu
 codeium.com
 coingate.com
-concerts.spotifycdn.com
 connect.spotify.com
 console.anthropic.com
 console.groq.com
@@ -134,7 +123,6 @@ cursor.sh
 cursorapi.com
 damassets.autodesk.net
 datalore.jetbrains.com
-dd.tidal.com
 dealer-wg.spotify.com
 dealer.spotify.com
 deepl.com
@@ -174,7 +162,6 @@ etsy.com
 eu.posthog.com
 euro.com.pl
 evike.com
-exp.wg.spotify.com
 experimentation-grpc.deepl.com
 experimentation.deepl.com
 extensions.sketchup.com
@@ -222,15 +209,12 @@ guc3-spclient.spotify.com
 guidedhacking.com
 guilded.gg
 heads-ak-spotify-com.akamaized.net
-help.elevenlabs.io
 hume.ai
 hybrid-analysis.com
 i.instagram.com
 iaai.com
 ikea.com
-image-cdn-fa.spotifycdn.com
 images.pump.fun
-images.tidal.com
 img.modivo.cloud
 indeed.com
 inference.codeium.com
@@ -239,8 +223,6 @@ intel.com
 intel.de
 intel.se
 ios.chat.openai.com
-ip6-allnodes
-ip6-allrouters
 iperf3serverlist.net
 ita-free.app.deepl.com
 ita-free.www.deepl.com
@@ -256,11 +238,8 @@ lib.rus.ec
 lightning.ai
 linear.app
 linguee.com
-link.tidal.com
-listen.tidal.com
 login-wall.deepl.com
 login.amd.com
-login.tidal.com
 lookerstudio.google.com
 m3u.in
 make.com
@@ -275,7 +254,6 @@ marketplace.windsurf.com
 mediaexpert.pl
 mediamarkt.pl
 meta.ai
-metallica-api.wbagora.com
 metrics.spotify.com
 microcenter.com
 microchip.com
@@ -284,7 +262,6 @@ modivo.pl
 mongodb.com
 monica.im
 mouser.com
-mrkt.spotifycdn.com
 myjetbrains.com
 n8n.cloud
 naukimg.com
@@ -317,10 +294,7 @@ patreonusercontent.com
 payment.deezer.com
 pcmag.com
 pi.ai
-pickasso.spotifycdn.com
-platform.claude.com
 plugins.jetbrains.com
-podz-content.spotifycdn.com
 powertoolsuk.co.uk
 private-user-images.githubusercontent.com
 proactivebackend-pa.googleapis.com
@@ -348,13 +322,10 @@ scdn.co
 scontent.xx.fbcdn.net
 scribd.com
 sdmntprnortheu.oaiusercontent.com
-sdmntprukwest.oaiusercontent.com
 se.com
 security.id.supercell.com
 securitytrails.com
-seed-mix-image.spotifycdn.com
 sentry.io
-server.codeium.com
 shield.deepl.com
 singlekey-id.com
 sketchup.com
@@ -392,7 +363,6 @@ telesco.pe
 templatemonster.com
 tg.dev
 themoviedb.org
-thisis-images.spotifycdn.com
 ti.com
 tidal.com
 tiktok.com
@@ -413,8 +383,6 @@ ultimaker.com
 unleash.codeium.com
 unscreen.com
 updates.discord.com
-uploads.linear.app
-upsx.weather.com
 users.wix.com
 usher.ttvnw.net
 videos.openai.com
