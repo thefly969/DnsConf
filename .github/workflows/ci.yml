@@ -34,6 +34,9 @@ jobs:
       - name: Install DNS-over-TLS dependency
         run: python -m pip install --disable-pip-version-check dnspython==2.7.0
 
+      - name: Test DNS resolver country filtering
+        run: python -m unittest discover -s tests -v
+
       - name: Generate and validate ChatGPT/Gemini DNS candidates
         run: python scripts/generate_dns_hosts.py
 
