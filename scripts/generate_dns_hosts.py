@@ -26,7 +26,9 @@ def main():
  domains=[d for d in domains if d not in {"openai.com","oaistatic.com","oaiusercontent.com","withgoogle.com"}]
  if len(domains)<30: raise RuntimeError(f"Seed parsed only {len(domains)} ChatGPT/Gemini domains")
  fallback=get(FALLBACK); pairs=set(); failures=0
- # Require agreement from two independent public DNS baselines. A candidate is\n # retained only when neither resolver returns that address for the domain.\n BASELINES=[("8.8.8.8",None),("1.1.1.1",None)]
+ # Require agreement from two independent public DNS baselines. A candidate is
+ # retained only when neither resolver returns that address for the domain.
+ BASELINES=[("8.8.8.8",None),("1.1.1.1",None)]
  def one(task):
   domain,server,sni=task
   try: return domain,query(domain,server,sni),None
