@@ -2,7 +2,7 @@ name: NextDNS SMART Rewrite Sync
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/dnshostsgenerator-dot-sync]
     paths: ['.github/workflows/nextdns_sync.yml', 'scripts/**', 'src/**', 'pom.xml']
   schedule:
     - cron: '0 3 * * *'
@@ -30,7 +30,7 @@ jobs:
     environment: DNS
     env:
       DNS: NEXTDNS
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      DRY_RUN: ${{ github.ref != 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
       BLOCK: ${{ vars.BLOCK }}
       REDIRECT: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart-no-crutch.hosts
       REDIRECT_CANDIDATES: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/combined-no-crutch.hosts
