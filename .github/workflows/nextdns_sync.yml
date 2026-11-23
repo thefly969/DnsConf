@@ -2,7 +2,7 @@ name: NextDNS SMART Rewrite Sync
 
 on:
   push:
-    branches: [main, feat/dnshostsgenerator-dot-sync]
+    branches: [main, feat/dnshostsgenerator-dot-sync, fix/exclude-ukrainian-dns-resolvers]
     paths: ['.github/workflows/nextdns_sync.yml', 'scripts/**', 'src/**', 'pom.xml']
   schedule:
     - cron: '0 3 * * *'
