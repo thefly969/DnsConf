@@ -23,6 +23,7 @@ import static com.novibe.common.config.EnvironmentVariables.BLOCK;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT_CANDIDATES;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT_FALLBACK;
+import static com.novibe.common.config.EnvironmentVariables.DRY_RUN;
 
 @Service
 @RequiredArgsConstructor
@@ -140,7 +141,11 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
             List<String> filteredBlocklist = nextDnsDenyService.omitExistingDenys(blocks);
             Log.common("Prepared %s domains to block".formatted(filteredBlocklist.size()));
             Log.step("Save denylist");
-            nextDnsDenyService.saveDenyList(filteredBlocklist);
+            if (DRY_RUN) {
+                Log.common("DRY_RUN enabled: would save %s denylist entries; no profile changes made.".formatted(filteredBlocklist.size()));
+            } else {
+                nextDnsDenyService.saveDenyList(filteredBlocklist);
+            }
         } else {
             Log.fail("No block sources provided");
         }
@@ -247,20 +252,30 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
 
             Log.step("Prepare and optimize validated redirects");
             Map<String, CreateRewriteDto> requests = selection.rewrites();
-            nextDnsRewriteService.syncRewrites(requests);
+            if (DRY_RUN) {
+                Log.common("DRY_RUN enabled: validated %s rewrite rules; no NextDNS rewrite changes made.".formatted(requests.size()));
+            } else {
+                nextDnsRewriteService.syncRewrites(requests);
+            }
         } else {
             Log.fail("No primary SMART rewrite sources provided");
         }
 
         if (blockSources.isEmpty() && primarySources.isEmpty()) {
             Log.step("Remove settings");
-            nextDnsDenyService.removeAll();
-            nextDnsRewriteService.removeAll();
+            if (DRY_RUN) {
+                Log.common("DRY_RUN enabled: would remove all managed deny/rewrite rules; no profile changes made.");
+            } else {
+                nextDnsDenyService.removeAll();
+                nextDnsRewriteService.removeAll();
+            }
         }
     }
 
     @Override
     protected void finishMessage() {
-        Log.global("Profile " + dnsProfile.number() + " (NextDNS) set up successfully");
+        Log.global(DRY_RUN
+                ? "DRY_RUN completed for Profile " + dnsProfile.number() + " (NextDNS); no profile changes were made"
+                : "Profile " + dnsProfile.number() + " (NextDNS) set up successfully");
     }
 }

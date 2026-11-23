@@ -8,6 +8,12 @@ on:
     - cron: '0 3 * * *'
       timezone: Europe/Zurich
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate and report changes without modifying NextDNS"
+        type: boolean
+        required: true
+        default: true
 
 permissions:
   contents: write
@@ -24,6 +30,7 @@ jobs:
     environment: DNS
     env:
       DNS: NEXTDNS
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       BLOCK: ${{ vars.BLOCK }}
       REDIRECT: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart-no-crutch.hosts
       REDIRECT_CANDIDATES: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/combined-no-crutch.hosts

@@ -24,6 +24,8 @@ public class EnvironmentVariables {
 
     public static final String DONOR_DNS = System.getenv("DONOR_DNS");
 
+    public static final boolean DRY_RUN = Boolean.parseBoolean(System.getenv().getOrDefault("DRY_RUN", "false"));
+
     private static String extractMandatoryVariable(String key) {
         String env = System.getenv(key);
         if (isNull(env) || env.isBlank()) {
