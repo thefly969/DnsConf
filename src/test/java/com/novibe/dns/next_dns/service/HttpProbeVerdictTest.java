@@ -1,44 +1,25 @@
 package com.novibe.dns.next_dns.service;
 
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class HttpProbeVerdictTest {
-
-    @Test
-    void rejectsExplicitRegionalRefusalEvenWhenStatusIsSuccessful() {
-        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(
-                200,
-                "{\"error\":\"unsupported_country_region_territory\"}"
-        ));
+    @Test void acceptsSuccessAndRedirects() {
+        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(200,"OK"));
+        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(301,"Moved"));
+        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(302,""));
     }
-
-    @Test
-    void acceptsCloudflareAnonymousRequestDenial() {
-        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(
-                403,
-                "{\"cf_details\":\"Request is not allowed\"}"
-        ));
+    @Test void rejectsRegionalRefusalInsideSuccessfulResponse() {
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(200,"unsupported_country_region_territory"));
     }
-
-    @Test
-    void acceptsBotChallengeBecauseItDoesNotProveApplicationSessionWillFail() {
-        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(
-                403,
-                "<html><title>Just a moment</title><div>cf-chl-</div></html>"
-        ));
+    @Test void rejectsCloudflareDenialsAndChallenges() {
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(403,"Request is not allowed"));
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(403,"<title>Just a moment</title><div>cf-chl-</div>"));
     }
-
-    @Test
-    void acceptsGoogleNotFoundForApiOrServiceRoot() {
-        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(404, "Not Found"));
-    }
-
-    @Test
-    void rejectsServerErrorsAndMissingHttpResponse() {
-        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(503, "Bad Gateway"));
-        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(-1, ""));
+    @Test void rejectsNotFoundRateLimitAndServerErrors() {
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(404,"Not Found"));
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(429,"Too Many Requests"));
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(503,"Bad Gateway"));
+        assertFalse(SniProxyHealthChecker.isUsableHttpResponse(-1,""));
     }
 }
