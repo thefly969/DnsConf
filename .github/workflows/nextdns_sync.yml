@@ -2,79 +2,66 @@ name: NextDNS SMART Rewrite Sync
 
 on:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/nextdns_sync.yml'
-      - 'src/**'
-      - 'pom.xml'
+    branches: [main, feat/dnshostsgenerator-dot-sync]
+    paths: ['.github/workflows/nextdns_sync.yml', 'scripts/**', 'src/**', 'pom.xml']
   schedule:
     - cron: '0 3 * * *'
       timezone: Europe/Zurich
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate and report changes without modifying NextDNS"
+        type: boolean
+        required: true
+        default: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: nextdns-clean-workflow-v1
+  group: nextdns-clean-workflow-v2
   cancel-in-progress: false
 
 jobs:
   sync:
     name: sync
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: DNS
-
     env:
       DNS: NEXTDNS
+      DRY_RUN: ${{ github.ref != 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
       BLOCK: ${{ vars.BLOCK }}
-      # Priority 1: SMART's preferred, non-Crutch proxy IP mappings.
       REDIRECT: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/smart-no-crutch.hosts
-      # Priority 2: additional IP candidates from every upstream provider;
-      # code restricts these to the SMART domain allowlist.
       REDIRECT_CANDIDATES: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/combined-no-crutch.hosts
-      # Priority 3: direct mappings for SMART domains with no proxy mapping.
-      REDIRECT_FALLBACK: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/hosts/only-crutch.hosts
+      REDIRECT_FALLBACK: file://${{ github.workspace }}/generated/dnshostsgenerator.hosts
       EXCLUDE_REDIRECT: ${{ vars.EXCLUDE_REDIRECT }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
       TZ: Europe/Zurich
-
     steps:
       - name: Validate NextDNS configuration
         shell: bash
         run: |
-          if [[ -z "$CLIENT_ID" ]]; then
-            echo "::error::Missing DNS environment secret CLIENT_ID (NextDNS profile ID)."
-            exit 1
-          fi
-          if [[ -z "$AUTH_SECRET" ]]; then
-            echo "::error::Missing DNS environment secret AUTH_SECRET (NextDNS API key)."
-            exit 1
-          fi
-          if [[ -z "$REDIRECT" || -z "$REDIRECT_CANDIDATES" || -z "$REDIRECT_FALLBACK" ]]; then
-            echo "::error::One or more SMART hosts source URLs are empty."
-            exit 1
-          fi
-          echo "NextDNS credentials and SMART hosts sources are configured."
-
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up JDK 26
-        uses: actions/setup-java@v5
+          test -n "$CLIENT_ID" || { echo "::error::Missing CLIENT_ID"; exit 1; }
+          test -n "$AUTH_SECRET" || { echo "::error::Missing AUTH_SECRET"; exit 1; }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install DNS-over-TLS dependency
+        run: python -m pip install --disable-pip-version-check dnspython==2.7.0
+      - name: Generate DnsHostsGenerator candidates
+        run: python scripts/generate_dns_hosts.py
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '26'
           cache: maven
-
       - name: Build and run tests
         run: mvn -B -ntp clean verify
-
       - name: Synchronize NextDNS profile
         run: java --enable-preview -jar target/*.jar
-
       - name: Persist source-managed rewrite manifest
         if: success()
         shell: bash

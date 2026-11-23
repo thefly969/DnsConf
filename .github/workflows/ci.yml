@@ -26,5 +26,16 @@ jobs:
           java-version: "26"
           cache: maven
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install DNS-over-TLS dependency
+        run: python -m pip install --disable-pip-version-check dnspython==2.7.0
+
+      - name: Generate and validate ChatGPT/Gemini DNS candidates
+        run: python scripts/generate_dns_hosts.py
+
       - name: Build and run unit tests
         run: mvn -B -ntp clean verify
