@@ -83,10 +83,9 @@ public class SniProxyHealthChecker implements TlsSniProbe {
         return isUsableHttpResponse(code,body.toString());
     }
 
-    // 2xx/3xx and 401 (normal unauthenticated API response) pass. 403/404/429
-    // are not evidence of a usable route; regional and Cloudflare denials fail.
+    // 2xx/3xx and 401 (normal unauthenticated API response) pass. 403/404/429 fail.
     static boolean isUsableHttpResponse(int code,String body) {
-        if(code<200||code>=400)return false;
+        if(code<200||(code>=400&&code!=401))return false;
         String b=body==null?"":body.toLowerCase(Locale.ROOT);
         return !b.contains("unsupported_country_region_territory")
                 && !b.contains("request is not allowed") && !b.contains("cf-chl-")

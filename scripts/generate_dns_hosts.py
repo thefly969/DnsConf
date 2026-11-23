@@ -1,4 +1,4 @@
-import ipaddress, re, sys, urllib.request
+import concurrent.futures, ipaddress, re, sys, urllib.request
 from pathlib import Path
 import dns.message, dns.query, dns.rdatatype, dns.rcode
 
@@ -17,22 +17,35 @@ def query(domain,server,sni=None):
  return {str(x.address) for rr in r.answer if rr.rdtype==dns.rdatatype.A for x in rr if ipaddress.ip_address(x.address).is_global}
 def main():
  sql=get(SEED)
- domains=list(dict.fromkeys(x.lower().rstrip(".") for x in re.findall(r"INSERT OR IGNORE INTO domains \([^)]*\) VALUES \(\s*\d+\s*,\s*'([^']+)'\s*,\s*\d+\s*,\s*[01]\s*\)",sql,re.I)))
+ rows=re.findall(r"INSERT OR IGNORE INTO domains \([^)]*\) VALUES \(\s*\d+\s*,\s*'([^']+)'\s*,\s*(\d+)\s*,\s*[01]\s*\)",sql,re.I)
+ # This project currently targets ChatGPT and Gemini; ignore unrelated app groups.
+ domains=list(dict.fromkeys(d.lower().rstrip(".") for d,g in rows if g in {"1","2"}))
  domains=[d for d in domains if re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+",d)]
- if len(domains)<100: raise RuntimeError(f"Seed parsed only {len(domains)} domains")
+ # Avoid broad parent rewrites which affect unlisted subdomains too.
+ domains=[d for d in domains if d not in {"openai.com","oaistatic.com","oaiusercontent.com","withgoogle.com"}]
+ if len(domains)<30: raise RuntimeError(f"Seed parsed only {len(domains)} ChatGPT/Gemini domains")
  fallback=get(FALLBACK); pairs=set(); failures=0
+ def one(task):
+  domain,server,sni=task
+  try: return domain,query(domain,server,sni),None
+  except Exception as e: return domain,set(),str(e)
+ tasks=[(d,s,h) for d in domains for s,h in RESOLVERS]
+ with concurrent.futures.ThreadPoolExecutor(max_workers=24) as pool:
+  results=list(pool.map(one,tasks))
+ baseline={}
  for d in domains:
-  try: base=query(d,"8.8.8.8")
-  except Exception: base=set()
-  for server,sni in RESOLVERS:
-   try: pairs.update((ip,d) for ip in query(d,server,sni)-base)
-   except Exception: failures+=1
- if len(pairs)<10: raise RuntimeError(f"Only {len(pairs)} DoT candidates; refusing unsafe update")
+  try: baseline[d]=query(d,"8.8.8.8")
+  except Exception: baseline[d]=None
+ for d,answers,error in results:
+  if error: failures+=1
+  if baseline[d] is None: continue
+  pairs.update((ip,d) for ip in answers-baseline[d])
+ if len(pairs)<10: raise RuntimeError(f"Only {len(pairs)} verified DoT candidates; refusing unsafe update")
  lines=[f"{ip} {d}" for ip,d in sorted(pairs)]+["# Existing SMART direct fallback"]
  lines += [x.strip() for x in fallback.splitlines() if x.strip()]
  p=Path("generated/dnshostsgenerator.hosts");p.parent.mkdir(exist_ok=True)
  p.write_text("\n".join(lines)+"\n",encoding="utf-8")
- print(f"DnsHostsGenerator: {len(domains)} domains, {len(pairs)} candidate pairs, {failures} DoT query failures")
+ print(f"DnsHostsGenerator: {len(domains)} ChatGPT/Gemini domains, {len(pairs)} candidate pairs, {failures} DoT query failures")
 if __name__=="__main__":
  try: main()
  except Exception as e:

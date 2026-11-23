@@ -4,10 +4,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HttpProbeVerdictTest {
-    @Test void acceptsSuccessAndRedirects() {
+    @Test void acceptsSuccessRedirectAndUnauthenticatedApiResponse() {
         assertTrue(SniProxyHealthChecker.isUsableHttpResponse(200,"OK"));
         assertTrue(SniProxyHealthChecker.isUsableHttpResponse(301,"Moved"));
         assertTrue(SniProxyHealthChecker.isUsableHttpResponse(302,""));
+        assertTrue(SniProxyHealthChecker.isUsableHttpResponse(401,"Unauthorized"));
     }
     @Test void rejectsRegionalRefusalInsideSuccessfulResponse() {
         assertFalse(SniProxyHealthChecker.isUsableHttpResponse(200,"unsupported_country_region_territory"));
