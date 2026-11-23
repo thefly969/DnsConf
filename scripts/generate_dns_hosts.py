@@ -13,7 +13,8 @@ def get(url):
 def query(domain,server,sni=None):
  q=dns.message.make_query(domain,dns.rdatatype.A)
  r=dns.query.tls(q,server,port=853,timeout=4,server_hostname=sni,verify=True) if sni else dns.query.udp(q,server,timeout=4)
- if r.rcode()!=dns.rcode.NOERROR:return set()
+ if r.rcode()==dns.rcode.NXDOMAIN:return set()
+ if r.rcode()!=dns.rcode.NOERROR: raise RuntimeError(f"DNS {r.rcode()} for {domain} via {server}")
  return {str(x.address) for rr in r.answer if rr.rdtype==dns.rdatatype.A for x in rr if ipaddress.ip_address(x.address).is_global}
 def main():
  sql=get(SEED)
@@ -25,6 +26,7 @@ def main():
  domains=[d for d in domains if d not in {"openai.com","oaistatic.com","oaiusercontent.com","withgoogle.com"}]
  if len(domains)<30: raise RuntimeError(f"Seed parsed only {len(domains)} ChatGPT/Gemini domains")
  fallback=get(FALLBACK); pairs=set(); failures=0
+ # Require agreement from two independent public DNS baselines. A candidate is\n # retained only when neither resolver returns that address for the domain.\n BASELINES=[("8.8.8.8",None),("1.1.1.1",None)]
  def one(task):
   domain,server,sni=task
   try: return domain,query(domain,server,sni),None
@@ -34,8 +36,12 @@ def main():
   results=list(pool.map(one,tasks))
  baseline={}
  for d in domains:
-  try: baseline[d]=query(d,"8.8.8.8")
-  except Exception: baseline[d]=None
+  try:
+   baseline[d]=set().union(*(query(d,server,sni) for server,sni in BASELINES))
+  except Exception as e:
+   baseline[d]=None
+   failures+=1
+   print(f"Baseline DNS failed for {d}; skipping domain: {e}")
  for d,answers,error in results:
   if error: failures+=1
   if baseline[d] is None: continue
