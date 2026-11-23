@@ -2,7 +2,7 @@ name: NextDNS SMART Rewrite Sync
 
 on:
   push:
-    branches: [main, feat/dnshostsgenerator-dot-sync]
+    branches: [main, feat/dnshostsgenerator-dot-sync, fix/exclude-ukrainian-dns-resolvers]
     paths: ['.github/workflows/nextdns_sync.yml', 'scripts/**', 'src/**', 'pom.xml']
   schedule:
     - cron: '0 3 * * *'
@@ -51,6 +51,8 @@ jobs:
           python-version: '3.12'
       - name: Install DNS-over-TLS dependency
         run: python -m pip install --disable-pip-version-check dnspython==2.7.0
+      - name: Test DNS resolver country filtering
+        run: python -m unittest discover -s tests -v
       - name: Generate DnsHostsGenerator candidates
         run: python scripts/generate_dns_hosts.py
       - uses: actions/setup-java@v5
