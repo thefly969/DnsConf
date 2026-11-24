@@ -1,7 +1,10 @@
+3.basecampapi.com
 3dwarehouse.sketchup.com
 4pda.to
 aave.com
+account.jetbrains.com
 account.spotify.com
+account.wbgames.com
 accountmanagement.services.xerox.com
 accounts.spotify.com
 accounts.supercell.com
@@ -23,7 +26,6 @@ anthropic.com
 anthropic.qualtrics.com
 ap-gew1.spotify.com
 ap-gue1.spotify.com
-api-global.squareup.com
 api-sg-central.trae.ai
 api.anthropic.com
 api.elevenlabs.io
@@ -32,12 +34,11 @@ api.imgur.com
 api.instagram.com
 api.jetbrains.ai
 api.manus.im
-api.spotify.com
-api.squareup.com
 api.trae.ai
 api.us.elevenlabs.io
 api16-normal-alisg.mchost.guru
 apis.google.com
+app.notion.com
 app.reve.com
 app.zerossl.com
 apresolve.spotify.com
@@ -107,13 +108,10 @@ cloud.mongodb.com
 cloud.oracle.com
 cms-images.mmst.eu
 codeium.com
+codex-cloud-backend.chatgpt.com
 coingate.com
-connect.spotify.com
-console.anthropic.com
 console.groq.com
 console.neon.tech
-console.x.ai
-constellation.linear.app
 content-management-files.canva.com
 content.spotify.com
 controlplane.tailscale.com
@@ -143,6 +141,7 @@ dict.deepl.com
 digikey.com
 digikeyassets.com
 discuss.ai.google.dev
+dl.appstreaming.autodesk.com
 dl.dell.com
 dola.com
 download.jetbrains.com
@@ -157,6 +156,7 @@ dyson.de
 dyson.fr
 dyson.se
 edge-chat.instagram.com
+edgeservices.bing.com
 efulfillment.autodesk.com
 elevenlabs.io
 elevenreader.io
@@ -168,7 +168,6 @@ eu.posthog.com
 euro.com.pl
 evike.com
 experimentation.deepl.com
-extensions.sketchup.com
 f00.esfr.pl
 facebook.com
 fb.com
@@ -200,7 +199,6 @@ generativeai.google
 generativelanguage.googleapis.com
 genspark.ai
 geolocation.onetrust.com
-gew1-dealer.g2.spotify.com
 gew1-dealer.spotify.com
 gew1-spclient.spotify.com
 gist.githubusercontent.com
@@ -250,8 +248,6 @@ lib.rus.ec
 lightning.ai
 linear.app
 linguee.com
-login-wall.deepl.com
-login.amd.com
 lookerstudio.google.com
 m3u.in
 make.com
@@ -261,6 +257,7 @@ makitalatinamerica.com
 malwarebytes.com
 manus.im
 manybooks.net
+marketplace.atlassian.com
 marketplace.elgato.com
 marketplace.windsurf.com
 mediaexpert.pl
@@ -304,11 +301,10 @@ pandasecurity.com
 parsec.app
 patreon.com
 patreonusercontent.com
-payment.deezer.com
 pcmag.com
 people-pa.clients6.google.com
 pi.ai
-platform.claude.com
+plugins.jetbrains.com
 powertoolsuk.co.uk
 private-user-images.githubusercontent.com
 proactivebackend-pa.googleapis.com
@@ -331,7 +327,6 @@ rewards.bing.com
 robinfrontend-pa.googleapis.com
 romsgames.net
 rutor.info
-s.linear.app
 scdn.co
 scontent.xx.fbcdn.net
 scribd.com
@@ -372,7 +367,6 @@ t.me
 tableau.com
 tailscale.com
 tapeop.dev
-tcr9i.chat.openai.com
 telegram.dog
 telegram.me
 telegram.org
@@ -413,7 +407,6 @@ wbgames.com
 weather.com
 web.archive.org
 webchannel-alkalimakersuite-pa.clients6.google.com
-webrtc.chatgpt.com
 whimsical.com
 windguru.cz
 windsurf-stable.codeium.com
@@ -434,5 +427,6 @@ xiaomi.eu
 xpui.app.spotify.com
 xsts.auth.xboxlive.com
 yeggi.com
+youtrack.jetbrains.com
 zapier-deployment.com
 zapier.com
